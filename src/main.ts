@@ -1,11 +1,12 @@
 import { zipSync } from 'fflate';
 import { CancelledError, flatten, PasswordError, type FlattenOptions } from './flatten';
 
-const PRESETS: Record<string, { dpi: number; quality: number }> = {
-    small: { dpi: 100, quality: 0.6 },
-    balanced: { dpi: 150, quality: 0.75 },
-    sharp: { dpi: 220, quality: 0.82 },
-    print: { dpi: 300, quality: 0.88 },
+/** Resolution presets, in dots per inch. */
+const PRESETS: Record<string, number> = {
+    small: 100,
+    balanced: 150,
+    sharp: 220,
+    print: 300,
 };
 
 type Status = 'pending' | 'working' | 'done' | 'error';
@@ -38,6 +39,8 @@ const $ = <T extends HTMLElement>(selector: string): T =>
 const drop = $<HTMLLabelElement>('#drop');
 const fileInput = $<HTMLInputElement>('#file');
 const grayInput = $<HTMLInputElement>('#gray');
+const qualityInput = $<HTMLInputElement>('#quality');
+const qualityValue = $<HTMLOutputElement>('#quality-value');
 const results = $<HTMLElement>('#results');
 const list = $<HTMLUListElement>('#list');
 const clearButton = $<HTMLButtonElement>('#clear');
@@ -49,8 +52,13 @@ let busy = false;
 function currentOptions (): FlattenOptions
 {
     const checked = document.querySelector<HTMLInputElement>('input[name="preset"]:checked');
-    const preset = PRESETS[checked?.value ?? 'balanced'] ?? PRESETS.balanced;
-    return { ...preset, grayscale: grayInput.checked };
+    const ocr = document.querySelector<HTMLInputElement>('input[name="ocr"]:checked')?.value;
+    return {
+        dpi: PRESETS[checked?.value ?? 'balanced'] ?? PRESETS.balanced,
+        quality: Number(qualityInput.value) / 100,
+        grayscale: grayInput.checked,
+        ocrProtection: ocr === 'off' || ocr === 'strong' ? ocr : 'light',
+    };
 }
 
 function formatSize (bytes: number): string
@@ -423,11 +431,18 @@ window.addEventListener('drop', (event) =>
     addFiles(Array.from(event.dataTransfer?.files ?? []));
 });
 
-for (const input of document.querySelectorAll<HTMLInputElement>('input[name="preset"]'))
+for (const input of document.querySelectorAll<HTMLInputElement>('input[name="preset"], input[name="ocr"]'))
 {
     input.addEventListener('change', requeueAll);
 }
 grayInput.addEventListener('change', requeueAll);
+qualityInput.addEventListener('input', () =>
+{
+    qualityValue.value = qualityInput.value;
+});
+// 'change' fires once the slider is released, so dragging does not restart work.
+qualityInput.addEventListener('change', requeueAll);
+qualityValue.value = qualityInput.value;
 
 clearButton.addEventListener('click', () =>
 {

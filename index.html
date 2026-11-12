@@ -31,13 +31,31 @@
 
     <fieldset class="settings">
         <legend>Output</legend>
-        <div class="presets" role="radiogroup" aria-label="Quality">
+        <div class="presets" role="radiogroup" aria-label="Resolution">
             <label><input type="radio" name="preset" value="small"><span><b>Small</b><small>100 dpi</small></span></label>
             <label><input type="radio" name="preset" value="balanced" checked><span><b>Balanced</b><small>150 dpi</small></span></label>
             <label><input type="radio" name="preset" value="sharp"><span><b>Sharp</b><small>220 dpi</small></span></label>
             <label><input type="radio" name="preset" value="print"><span><b>Print</b><small>300 dpi</small></span></label>
         </div>
+        <label class="slider" for="quality">
+            <span>Image quality <output id="quality-value" for="quality">60</output></span>
+            <input id="quality" type="range" min="10" max="100" step="5" value="60">
+            <small>Lower is smaller and rougher, higher is cleaner and larger.</small>
+        </label>
         <label class="check"><input id="gray" type="checkbox"> Grayscale</label>
+        <div class="group">
+            <span id="ocr-label">OCR protection</span>
+            <div class="presets" role="radiogroup" aria-labelledby="ocr-label">
+                <label><input type="radio" name="ocr" value="off"><span><b>Off</b><small>clean pages</small></span></label>
+                <label><input type="radio" name="ocr" value="light" checked><span><b>Light</b><small>readable, visibly marked</small></span></label>
+                <label><input type="radio" name="ocr" value="strong"><span><b>Strong</b><small>harder for people too</small></span></label>
+            </div>
+            <small>
+                Bends the page slightly and scatters small marks over the text so text recognition
+                software misreads it. It lowers what OCR gets right; it cannot make text unreadable
+                to software while a person can still read it.
+            </small>
+        </div>
     </fieldset>
 
     <section id="results" class="results" hidden aria-live="polite">

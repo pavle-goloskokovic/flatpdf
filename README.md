@@ -13,18 +13,36 @@ never leave the device.
 
 1. [pdf.js](https://mozilla.github.io/pdf.js/) renders each page to a canvas at
    the chosen resolution.
-2. The canvas is encoded as JPEG (optionally converted to grayscale first).
+2. The canvas is optionally distorted against OCR and converted to grayscale,
+   then encoded as JPEG.
 3. [pdf-lib](https://pdf-lib.js.org/) writes a new PDF with one image per page.
 
 Several files can be dropped at once; they are processed one after another and
 can be downloaded individually or together as a zip.
 
-| Preset   | Resolution | JPEG quality |
-|----------|------------|--------------|
-| Small    | 100 dpi    | 0.60         |
-| Balanced | 150 dpi    | 0.75         |
-| Sharp    | 220 dpi    | 0.82         |
-| Print    | 300 dpi    | 0.88         |
+## Settings
+
+- **Resolution**: Small 100 dpi, Balanced 150 dpi (default), Sharp 220 dpi,
+  Print 300 dpi.
+- **Image quality**: JPEG quality from 10 to 100, default 60. JPEG is used
+  because it is the compact image format PDF supports natively.
+- **Grayscale**: drops colour.
+- **OCR protection**: Off, Light (default) or Strong. The page is bent
+  slightly and short strokes in the text colour are scattered over text areas,
+  so characters touch and OCR cannot separate them cleanly.
+
+OCR protection is a deterrent, not a guarantee. Measured on a page of 9 to
+12 pt text at 150 dpi with Tesseract 5, counting correctly read words:
+
+| Protection | Read as-is | Best result after clean-up filters |
+|------------|------------|------------------------------------|
+| Off        | 100%       | 100%                               |
+| Light      | 6%         | 48%                                |
+| Strong     | 2%         | 28%                                |
+
+Newer OCR engines and vision models are more robust than Tesseract and will
+recover more. Anything a person can read comfortably, good enough software can
+eventually read too.
 
 A flattened PDF is not always smaller than the original: a text-only document
 usually grows, while a document full of large photos usually shrinks.
