@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="description" content="Flatten PDFs in your browser: every page becomes a single image. Nothing is uploaded.">
+    <title>FlatPDF: flatten PDFs in your browser</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='5' y='2' width='22' height='28' rx='3' fill='%23c2410c'/%3E%3Crect x='9' y='14' width='14' height='4' rx='1' fill='%23fff'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+<main>
+    <header>
+        <h1>FlatPDF</h1>
+        <p class="lede">
+            Turn every page of a PDF into a single flat image. Text, layers, form fields and
+            annotations become pixels that can no longer be selected, edited or lifted out.
+        </p>
+    </header>
+
+    <label id="drop" class="drop" for="file">
+        <input id="file" type="file" accept="application/pdf,.pdf" multiple>
+        <span class="drop-title">Drop PDF files here</span>
+        <span class="drop-sub">or click to choose. You can add several at once.</span>
+    </label>
+
+    <p class="privacy">
+        Everything runs in this tab. Your files never leave your device.
+    </p>
+
+    <fieldset class="settings">
+        <legend>Output</legend>
+        <div class="presets" role="radiogroup" aria-label="Quality">
+            <label><input type="radio" name="preset" value="small"><span><b>Small</b><small>100 dpi</small></span></label>
+            <label><input type="radio" name="preset" value="balanced" checked><span><b>Balanced</b><small>150 dpi</small></span></label>
+            <label><input type="radio" name="preset" value="sharp"><span><b>Sharp</b><small>220 dpi</small></span></label>
+            <label><input type="radio" name="preset" value="print"><span><b>Print</b><small>300 dpi</small></span></label>
+        </div>
+        <label class="check"><input id="gray" type="checkbox"> Grayscale</label>
+    </fieldset>
+
+    <section id="results" class="results" hidden aria-live="polite">
+        <div class="results-head">
+            <h2>Files</h2>
+            <div class="results-actions">
+                <button id="clear" type="button" class="ghost">Clear</button>
+                <button id="download-all" type="button" hidden>Download all (.zip)</button>
+            </div>
+        </div>
+        <ul id="list" class="list"></ul>
+    </section>
+</main>
+
+<footer>
+    <a href="https://github.com/pavle-goloskokovic/flatpdf">Source on GitHub</a>
+</footer>
+
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
