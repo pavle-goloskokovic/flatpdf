@@ -32,14 +32,14 @@
     <fieldset class="settings">
         <legend>Output</legend>
         <div class="presets" role="radiogroup" aria-label="Resolution">
-            <label><input type="radio" name="preset" value="small"><span><b>Small</b><small>100 dpi</small></span></label>
-            <label><input type="radio" name="preset" value="balanced" checked><span><b>Balanced</b><small>150 dpi</small></span></label>
+            <label><input type="radio" name="preset" value="small" checked><span><b>Small</b><small>100 dpi</small></span></label>
+            <label><input type="radio" name="preset" value="balanced"><span><b>Balanced</b><small>150 dpi</small></span></label>
             <label><input type="radio" name="preset" value="sharp"><span><b>Sharp</b><small>220 dpi</small></span></label>
             <label><input type="radio" name="preset" value="print"><span><b>Print</b><small>300 dpi</small></span></label>
         </div>
         <label class="slider" for="quality">
-            <span>Image quality <output id="quality-value" for="quality">10</output></span>
-            <input id="quality" type="range" min="10" max="100" step="5" value="10">
+            <span>Image quality <output id="quality-value" for="quality">60</output></span>
+            <input id="quality" type="range" min="10" max="100" step="5" value="60">
             <small>Lower is smaller and rougher, higher is cleaner and larger.</small>
         </label>
         <label class="check"><input id="gray" type="checkbox"> Grayscale</label>

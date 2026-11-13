@@ -22,9 +22,9 @@ can be downloaded individually or together as a zip.
 
 ## Settings
 
-- **Resolution**: Small 100 dpi, Balanced 150 dpi (default), Sharp 220 dpi,
+- **Resolution**: Small 100 dpi (default), Balanced 150 dpi, Sharp 220 dpi,
   Print 300 dpi.
-- **Image quality**: JPEG quality from 10 to 100, default 10 (smallest files). JPEG is used
+- **Image quality**: JPEG quality from 10 to 100, default 60. JPEG is used
   because it is the compact image format PDF supports natively.
 - **Grayscale**: drops colour.
 - **OCR protection**: Off (default), Light or Strong. The page is bent
