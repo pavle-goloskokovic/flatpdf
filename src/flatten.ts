@@ -30,6 +30,8 @@ export interface FlattenOptions
 export interface FlattenCallbacks
 {
     onProgress?: (done: number, total: number) => void;
+    /** Receives the flattened first page as a JPEG, as soon as it is ready. */
+    onPreview?: (jpeg: Blob) => void;
     /** Return true to stop; `flatten` then throws `CancelledError`. */
     isCancelled?: () => boolean;
     /** Called for encrypted files. Return null to give up. */
@@ -235,7 +237,7 @@ export async function flatten (
     callbacks: FlattenCallbacks = {},
 ): Promise<Uint8Array>
 {
-    const { onProgress, isCancelled, askPassword } = callbacks;
+    const { onProgress, onPreview, isCancelled, askPassword } = callbacks;
     const checkCancelled = (): void =>
     {
         if (isCancelled?.())
@@ -345,6 +347,10 @@ export async function flatten (
                 }
 
                 const jpeg = await encodeJpeg(canvas, options.quality);
+                if (n === 1)
+                {
+                    onPreview?.(new Blob([jpeg], { type: 'image/jpeg' }));
+                }
                 const image = await output.embedJpg(jpeg);
                 output.addPage([size.width, size.height]).drawImage(image, {
                     x: 0,

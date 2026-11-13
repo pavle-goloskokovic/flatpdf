@@ -38,16 +38,16 @@
             <label><input type="radio" name="preset" value="print"><span><b>Print</b><small>300 dpi</small></span></label>
         </div>
         <label class="slider" for="quality">
-            <span>Image quality <output id="quality-value" for="quality">60</output></span>
-            <input id="quality" type="range" min="10" max="100" step="5" value="60">
+            <span>Image quality <output id="quality-value" for="quality">10</output></span>
+            <input id="quality" type="range" min="10" max="100" step="5" value="10">
             <small>Lower is smaller and rougher, higher is cleaner and larger.</small>
         </label>
         <label class="check"><input id="gray" type="checkbox"> Grayscale</label>
         <div class="group">
             <span id="ocr-label">OCR protection</span>
             <div class="presets" role="radiogroup" aria-labelledby="ocr-label">
-                <label><input type="radio" name="ocr" value="off"><span><b>Off</b><small>clean pages</small></span></label>
-                <label><input type="radio" name="ocr" value="light" checked><span><b>Light</b><small>readable, visibly marked</small></span></label>
+                <label><input type="radio" name="ocr" value="off" checked><span><b>Off</b><small>clean pages</small></span></label>
+                <label><input type="radio" name="ocr" value="light"><span><b>Light</b><small>readable, visibly marked</small></span></label>
                 <label><input type="radio" name="ocr" value="strong"><span><b>Strong</b><small>harder for people too</small></span></label>
             </div>
             <small>

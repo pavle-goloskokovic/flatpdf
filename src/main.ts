@@ -22,6 +22,8 @@ interface Item
     total: number;
     result: Blob | null;
     url: string | null;
+    /** Object URL of the flattened first page, shown as a thumbnail. */
+    preview: string | null;
     error: string;
     el: HTMLLIElement;
 }
@@ -57,7 +59,7 @@ function currentOptions (): FlattenOptions
         dpi: PRESETS[checked?.value ?? 'balanced'] ?? PRESETS.balanced,
         quality: Number(qualityInput.value) / 100,
         grayscale: grayInput.checked,
-        ocrProtection: ocr === 'off' || ocr === 'strong' ? ocr : 'light',
+        ocrProtection: ocr === 'light' || ocr === 'strong' ? ocr : 'off',
     };
 }
 
@@ -116,11 +118,32 @@ function releaseResult (item: Item): void
     item.result = null;
 }
 
+function setPreview (item: Item, jpeg: Blob | null): void
+{
+    if (item.preview)
+    {
+        URL.revokeObjectURL(item.preview);
+    }
+    item.preview = jpeg ? URL.createObjectURL(jpeg) : null;
+}
+
 function renderItem (item: Item): void
 {
     const { el: row } = item;
     row.className = `item ${item.status}`;
     row.replaceChildren();
+
+    const thumb = el('a', 'item-thumb');
+    if (item.preview)
+    {
+        const img = el('img');
+        img.src = item.preview;
+        img.alt = `First page of ${item.file.name}`;
+        thumb.href = item.preview;
+        thumb.target = '_blank';
+        thumb.title = 'Open first page preview';
+        thumb.append(img);
+    }
 
     const name = el('div', 'item-name', item.file.name);
     name.title = item.file.name;
@@ -168,7 +191,7 @@ function renderItem (item: Item): void
     remove.addEventListener('click', () => removeItem(item));
     actions.append(remove);
 
-    row.append(name, status, actions);
+    row.append(thumb, name, status, actions);
 
     if (item.status === 'working')
     {
@@ -199,6 +222,7 @@ function removeItem (item: Item): void
     items.splice(index, 1);
     item.run++;
     releaseResult(item);
+    setPreview(item, null);
     item.el.remove();
     renderSummary();
 }
@@ -240,6 +264,14 @@ async function processItem (item: Item): Promise<void>
                 {
                     item.done = done;
                     item.total = total;
+                    renderItem(item);
+                }
+            },
+            onPreview: (jpeg) =>
+            {
+                if (!stale())
+                {
+                    setPreview(item, jpeg);
                     renderItem(item);
                 }
             },
@@ -310,6 +342,7 @@ function addFiles (files: Iterable<File>): void
             total: 0,
             result: null,
             url: null,
+            preview: null,
             error: '',
             el: el('li'),
         };

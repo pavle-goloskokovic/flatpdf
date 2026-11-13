@@ -24,15 +24,15 @@ can be downloaded individually or together as a zip.
 
 - **Resolution**: Small 100 dpi, Balanced 150 dpi (default), Sharp 220 dpi,
   Print 300 dpi.
-- **Image quality**: JPEG quality from 10 to 100, default 60. JPEG is used
+- **Image quality**: JPEG quality from 10 to 100, default 10 (smallest files). JPEG is used
   because it is the compact image format PDF supports natively.
 - **Grayscale**: drops colour.
-- **OCR protection**: Off, Light (default) or Strong. The page is bent
+- **OCR protection**: Off (default), Light or Strong. The page is bent
   slightly and short strokes in the text colour are scattered over text areas,
   so characters touch and OCR cannot separate them cleanly.
 
 OCR protection is a deterrent, not a guarantee. Measured on a page of 9 to
-12 pt text at 150 dpi with Tesseract 5, counting correctly read words:
+12 pt text at 150 dpi and quality 60 with Tesseract 5, counting correctly read words:
 
 | Protection | Read as-is | Best result after clean-up filters |
 |------------|------------|------------------------------------|
