@@ -22,7 +22,7 @@ can be downloaded individually or together as a zip.
 
 ## Settings
 
-- **Resolution**: Screen 72 dpi (default), Small 100 dpi, Balanced 150 dpi, Sharp 220 dpi,
+- **Resolution**: Screen 72 dpi (default), Small 96 dpi, Balanced 150 dpi, Sharp 200 dpi,
   Print 300 dpi.
 - **Image quality**: JPEG quality from 10 to 100, default 60. JPEG is used
   because it is the compact image format PDF supports natively.

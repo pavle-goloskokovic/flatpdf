@@ -4,9 +4,9 @@ import { CancelledError, flatten, PasswordError, type FlattenOptions } from './f
 /** Resolution presets, in dots per inch. */
 const PRESETS: Record<string, number> = {
     screen: 72,
-    small: 100,
+    small: 96,
     balanced: 150,
-    sharp: 220,
+    sharp: 200,
     print: 300,
 };
 
