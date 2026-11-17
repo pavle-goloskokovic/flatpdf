@@ -63,7 +63,7 @@ function currentOptions (): FlattenOptions
     const checked = document.querySelector<HTMLInputElement>('input[name="preset"]:checked');
     const ocr = document.querySelector<HTMLInputElement>('input[name="ocr"]:checked')?.value;
     return {
-        dpi: PRESETS[checked?.value ?? 'screen'] ?? PRESETS.screen,
+        dpi: PRESETS[checked?.value ?? 'balanced'] ?? PRESETS.balanced,
         quality: Number(qualityInput.value) / 100,
         grayscale: grayInput.checked,
         printableOnly: printableInput.checked,
