@@ -324,7 +324,30 @@ export async function flatten (
 
             try
             {
-                await page.render({ canvas: null, canvasContext: ctx, viewport }).promise;
+                // A form field normally carries a ready-made drawing of its value.
+                // Some tools store only the value; pdf.js then draws nothing, so
+                // hand those values back to it and let it draw them itself.
+                for (const annotation of await page.getAnnotations())
+                {
+                    const { fieldType, fieldValue: value } = annotation;
+                    const filled = Array.isArray(value) ? value.length > 0 : typeof value === 'string' && value !== '';
+                    if (
+                        annotation.subtype === 'Widget'
+                        && (fieldType === 'Tx' || fieldType === 'Ch')
+                        && !annotation.hasAppearance
+                        && filled
+                    )
+                    {
+                        source.annotationStorage.setValue(annotation.id, { value });
+                    }
+                }
+
+                await page.render({
+                    canvas: null,
+                    canvasContext: ctx,
+                    viewport,
+                    annotationMode: pdfjs.AnnotationMode.ENABLE_STORAGE,
+                }).promise;
                 checkCancelled();
 
                 if (editPixels)
