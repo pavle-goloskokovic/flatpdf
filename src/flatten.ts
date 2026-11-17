@@ -1,4 +1,4 @@
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, PDFDropdown, PDFOptionList } from 'pdf-lib';
 import * as pdfjs from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
@@ -208,6 +208,35 @@ function drawSpecks (
     ctx.restore();
 }
 
+/**
+ * Stored values of dropdown and list fields, by field name, read straight from
+ * the file. Empty when the file cannot be read this way (e.g. encrypted).
+ */
+async function readChoiceValues (source: pdfjs.PDFDocumentProxy): Promise<Map<string, string[]>>
+{
+    const values = new Map<string, string[]>();
+    try
+    {
+        const doc = await PDFDocument.load(await source.getData(), { updateMetadata: false });
+        for (const field of doc.getForm().getFields())
+        {
+            if (field instanceof PDFDropdown || field instanceof PDFOptionList)
+            {
+                const selected = field.getSelected();
+                if (selected.length > 0)
+                {
+                    values.set(field.getName(), selected);
+                }
+            }
+        }
+    }
+    catch
+    {
+        // Fall back to what pdf.js reports.
+    }
+    return values;
+}
+
 function encodeJpeg (canvas: HTMLCanvasElement, quality: number): Promise<ArrayBuffer>
 {
     return new Promise((resolve, reject) =>
@@ -291,6 +320,7 @@ export async function flatten (
     try
     {
         const output = await PDFDocument.create();
+        let choiceValues: Map<string, string[]> | undefined;
         const total = source.numPages;
         onProgress?.(0, total);
 
@@ -329,14 +359,26 @@ export async function flatten (
                 // hand those values back to it and let it draw them itself.
                 for (const annotation of await page.getAnnotations())
                 {
-                    const { fieldType, fieldValue: value } = annotation;
-                    const filled = Array.isArray(value) ? value.length > 0 : typeof value === 'string' && value !== '';
+                    const { fieldType } = annotation;
                     if (
-                        annotation.subtype === 'Widget'
-                        && (fieldType === 'Tx' || fieldType === 'Ch')
-                        && !annotation.hasAppearance
-                        && filled
+                        annotation.subtype !== 'Widget'
+                        || (fieldType !== 'Tx' && fieldType !== 'Ch')
+                        || annotation.hasAppearance
                     )
+                    {
+                        continue;
+                    }
+                    let value: unknown = annotation.fieldValue;
+                    if (fieldType === 'Ch')
+                    {
+                        // pdf.js derives a list's value from its selected-index
+                        // entry; when that disagrees with the stored value, the
+                        // PDF spec says the stored value wins.
+                        choiceValues ??= await readChoiceValues(source);
+                        value = choiceValues.get(annotation.fieldName) ?? value;
+                    }
+                    const filled = Array.isArray(value) ? value.length > 0 : typeof value === 'string' && value !== '';
+                    if (filled)
                     {
                         source.annotationStorage.setValue(annotation.id, { value });
                     }
