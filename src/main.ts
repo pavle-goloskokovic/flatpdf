@@ -1,4 +1,5 @@
 import { zipSync } from 'fflate';
+import { offerImagesToEditor, openEditor, type Placement } from './editor';
 import { CancelledError, flatten, PasswordError, type FlattenOptions } from './flatten';
 
 /** Resolution presets, in dots per inch. */
@@ -25,6 +26,10 @@ interface Item
     url: string | null;
     /** Object URL of the flattened first page, shown as a thumbnail. */
     preview: string | null;
+    /** Signature, stamp and other images the user placed on pages. */
+    placements: Placement[];
+    /** Last password entered for this file, so it is asked for only once. */
+    password?: string;
     error: string;
     el: HTMLLIElement;
 }
@@ -187,6 +192,16 @@ function renderItem (item: Item): void
             break;
     }
 
+    if (item.status !== 'error')
+    {
+        const count = item.placements.length;
+        const edit = el('button', 'ghost', count ? `Images (${count})` : 'Add images');
+        edit.type = 'button';
+        edit.title = 'Place signature or stamp images on pages';
+        edit.addEventListener('click', () => void editImages(item));
+        actions.prepend(edit);
+    }
+
     const remove = el('button', 'icon', '✕');
     remove.type = 'button';
     remove.title = 'Remove';
@@ -247,6 +262,58 @@ function describeError (error: unknown): string
     return 'Could not flatten this file.';
 }
 
+function askPassword (item: Item, retry: boolean): string | null
+{
+    const entered = window.prompt(
+        retry
+            ? `Wrong password. Enter the password for "${item.file.name}":`
+            : `"${item.file.name}" is password protected. Enter its password:`,
+    );
+    if (entered !== null)
+    {
+        item.password = entered;
+    }
+    return entered;
+}
+
+function requeue (item: Item): void
+{
+    item.run++;
+    releaseResult(item);
+    item.status = 'pending';
+    renderItem(item);
+}
+
+/** Opens the image editor for one file and re-flattens it if anything changed. */
+async function editImages (item: Item): Promise<void>
+{
+    let placements: Placement[] | null;
+    try
+    {
+        placements = await openEditor({
+            file: item.file,
+            password: item.password,
+            printableOnly: printableInput.checked,
+            placements: item.placements,
+            askPassword: (retry) => askPassword(item, retry),
+        });
+    }
+    catch (error)
+    {
+        console.error(error);
+        window.alert(describeError(error));
+        return;
+    }
+    if (placements === null || !items.includes(item))
+    {
+        return;
+    }
+    item.placements = placements;
+    requeue(item);
+    renderSummary();
+    void pump();
+}
+
 async function processItem (item: Item): Promise<void>
 {
     const run = item.run;
@@ -259,7 +326,19 @@ async function processItem (item: Item): Promise<void>
 
     try
     {
-        const bytes = await flatten(await item.file.arrayBuffer(), currentOptions(), {
+        const options: FlattenOptions = {
+            ...currentOptions(),
+            password: item.password,
+            overlays: item.placements.map((p) => ({
+                page: p.page,
+                source: p.image.element,
+                x: p.x,
+                y: p.y,
+                width: p.width,
+                height: p.height,
+            })),
+        };
+        const bytes = await flatten(await item.file.arrayBuffer(), options, {
             isCancelled: stale,
             onProgress: (done, total) =>
             {
@@ -278,11 +357,7 @@ async function processItem (item: Item): Promise<void>
                     renderItem(item);
                 }
             },
-            askPassword: (retry) => window.prompt(
-                retry
-                    ? `Wrong password. Enter the password for "${item.file.name}":`
-                    : `"${item.file.name}" is password protected. Enter its password:`,
-            ),
+            askPassword: (retry) => askPassword(item, retry),
         });
         if (stale())
         {
@@ -346,6 +421,7 @@ function addFiles (files: Iterable<File>): void
             result: null,
             url: null,
             preview: null,
+            placements: [],
             error: '',
             el: el('li'),
         };
@@ -371,10 +447,7 @@ function requeueAll (): void
         {
             continue;
         }
-        item.run++;
-        releaseResult(item);
-        item.status = 'pending';
-        renderItem(item);
+        requeue(item);
     }
     renderSummary();
     void pump();
@@ -464,7 +537,12 @@ window.addEventListener('drop', (event) =>
     event.preventDefault();
     dragDepth = 0;
     drop.classList.remove('over');
-    addFiles(Array.from(event.dataTransfer?.files ?? []));
+    const files = Array.from(event.dataTransfer?.files ?? []);
+    // While the image editor is open, a drop is an image for it, not a PDF.
+    if (!offerImagesToEditor(files))
+    {
+        addFiles(files);
+    }
 });
 
 for (const input of document.querySelectorAll<HTMLInputElement>('input[name="preset"], input[name="ocr"]'))

@@ -30,6 +30,22 @@ export interface FlattenOptions
      * PDF does not mark as printable, and include print-only ones.
      */
     printableOnly: boolean;
+    /** Images to draw onto pages before they are flattened. */
+    overlays?: readonly Overlay[];
+    /** Password to try first on an encrypted file. */
+    password?: string;
+}
+
+/** An image placed on a page. Position and size are in points from the page's top-left corner. */
+export interface Overlay
+{
+    /** 1-based page number. */
+    page: number;
+    source: CanvasImageSource;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
 }
 
 export interface FlattenCallbacks
@@ -265,6 +281,147 @@ function isCommandButton (annotation: Record<string, any>): boolean
     return !printable || Boolean(annotation.resetForm) || Boolean(annotation.url);
 }
 
+export interface OpenedPdf
+{
+    doc: pdfjs.PDFDocumentProxy;
+    close: () => Promise<void>;
+}
+
+/**
+ * Opens a PDF with pdf.js. `password` is tried first; `askPassword` is called
+ * when it is missing or wrong. Throws `PasswordError` when no password works.
+ */
+export async function openPdf (
+    data: ArrayBuffer,
+    password?: string,
+    askPassword?: (retry: boolean) => string | null,
+): Promise<OpenedPdf>
+{
+    const task = pdfjs.getDocument({
+        data: new Uint8Array(data),
+        password,
+        cMapUrl: ASSETS + 'cmaps/',
+        cMapPacked: true,
+        standardFontDataUrl: ASSETS + 'standard_fonts/',
+        wasmUrl: ASSETS + 'wasm/',
+        iccUrl: ASSETS + 'iccs/',
+        // Pages are read back from the canvas right after rendering, so keep
+        // rendering on this thread with a plain 2D canvas.
+        disableWorkerRendering: true,
+    });
+
+    let passwordRefused = false;
+    task.onPassword = (update: (password: string) => void, reason: number) =>
+    {
+        const retry = reason === pdfjs.PasswordResponses.INCORRECT_PASSWORD;
+        const entered = askPassword?.(retry) ?? null;
+        if (entered === null)
+        {
+            passwordRefused = true;
+            void task.destroy();
+        }
+        else
+        {
+            update(entered);
+        }
+    };
+
+    try
+    {
+        const doc = await task.promise;
+        return { doc, close: () => task.destroy() };
+    }
+    catch (error)
+    {
+        if (passwordRefused || (error instanceof Error && error.name === 'PasswordException'))
+        {
+            throw new PasswordError();
+        }
+        throw error;
+    }
+}
+
+/**
+ * Draws pages of one document the way the flattened output shows them: form
+ * values are always drawn, form command buttons never are.
+ */
+export class PageRenderer
+{
+    private readonly doc: pdfjs.PDFDocumentProxy;
+    private readonly printableOnly: boolean;
+    private choiceValues: Map<string, string[]> | undefined;
+
+    constructor (doc: pdfjs.PDFDocumentProxy, printableOnly: boolean)
+    {
+        this.doc = doc;
+        this.printableOnly = printableOnly;
+    }
+
+    async render (
+        page: pdfjs.PDFPageProxy,
+        ctx: CanvasRenderingContext2D,
+        viewport: ReturnType<pdfjs.PDFPageProxy['getViewport']>,
+    ): Promise<void>
+    {
+        const storage = this.doc.annotationStorage;
+
+        // A form field normally carries a ready-made drawing of its value.
+        // Some tools store only the value; pdf.js then draws nothing, so
+        // hand those values back to it and let it draw them itself.
+        for (const annotation of await page.getAnnotations({ intent: 'any' }))
+        {
+            const { fieldType } = annotation;
+            if (isCommandButton(annotation))
+            {
+                storage.setValue(annotation.id, { noView: true });
+                continue;
+            }
+            if (this.printableOnly)
+            {
+                const flags: number = annotation.annotationFlags ?? 0;
+                if ((flags & FLAG_PRINT) === 0)
+                {
+                    storage.setValue(annotation.id, { noView: true });
+                    continue;
+                }
+                if ((flags & FLAG_NO_VIEW) !== 0 && (flags & FLAG_HIDDEN) === 0)
+                {
+                    storage.setValue(annotation.id, { noView: false });
+                }
+            }
+            if (
+                annotation.subtype !== 'Widget'
+                || (fieldType !== 'Tx' && fieldType !== 'Ch')
+                || annotation.hasAppearance
+            )
+            {
+                continue;
+            }
+            let value: unknown = annotation.fieldValue;
+            if (fieldType === 'Ch')
+            {
+                // pdf.js derives a list's value from its selected-index
+                // entry; when that disagrees with the stored value, the
+                // PDF spec says the stored value wins.
+                this.choiceValues ??= await readChoiceValues(this.doc);
+                value = this.choiceValues.get(annotation.fieldName) ?? value;
+            }
+            const filled = Array.isArray(value) ? value.length > 0 : typeof value === 'string' && value !== '';
+            if (filled)
+            {
+                storage.setValue(annotation.id, { value });
+            }
+        }
+
+        await page.render({
+            canvas: null,
+            canvasContext: ctx,
+            viewport,
+            annotationMode: pdfjs.AnnotationMode.ENABLE_STORAGE,
+        }).promise;
+    }
+}
+
 function encodeJpeg (canvas: HTMLCanvasElement, quality: number): Promise<ArrayBuffer>
 {
     return new Promise((resolve, reject) =>
@@ -303,52 +460,12 @@ export async function flatten (
         }
     };
 
-    const task = pdfjs.getDocument({
-        data: new Uint8Array(data),
-        cMapUrl: ASSETS + 'cmaps/',
-        cMapPacked: true,
-        standardFontDataUrl: ASSETS + 'standard_fonts/',
-        wasmUrl: ASSETS + 'wasm/',
-        iccUrl: ASSETS + 'iccs/',
-        // Pages are read back from the canvas right after rendering, so keep
-        // rendering on this thread with a plain 2D canvas.
-        disableWorkerRendering: true,
-    });
-
-    let passwordRefused = false;
-    task.onPassword = (update: (password: string) => void, reason: number) =>
-    {
-        const retry = reason === pdfjs.PasswordResponses.INCORRECT_PASSWORD;
-        const password = askPassword?.(retry) ?? null;
-        if (password === null)
-        {
-            passwordRefused = true;
-            void task.destroy();
-        }
-        else
-        {
-            update(password);
-        }
-    };
-
-    let source: pdfjs.PDFDocumentProxy;
-    try
-    {
-        source = await task.promise;
-    }
-    catch (error)
-    {
-        if (passwordRefused || (error instanceof Error && error.name === 'PasswordException'))
-        {
-            throw new PasswordError();
-        }
-        throw error;
-    }
+    const { doc: source, close } = await openPdf(data, options.password, askPassword);
+    const renderer = new PageRenderer(source, options.printableOnly);
 
     try
     {
         const output = await PDFDocument.create();
-        let choiceValues: Map<string, string[]> | undefined;
         const total = source.numPages;
         onProgress?.(0, total);
 
@@ -382,60 +499,16 @@ export async function flatten (
 
             try
             {
-                // A form field normally carries a ready-made drawing of its value.
-                // Some tools store only the value; pdf.js then draws nothing, so
-                // hand those values back to it and let it draw them itself.
-                for (const annotation of await page.getAnnotations({ intent: 'any' }))
+                await renderer.render(page, ctx, viewport);
+
+                ctx.imageSmoothingQuality = 'high';
+                for (const overlay of options.overlays ?? [])
                 {
-                    const { fieldType } = annotation;
-                    if (isCommandButton(annotation))
+                    if (overlay.page === n)
                     {
-                        source.annotationStorage.setValue(annotation.id, { noView: true });
-                        continue;
-                    }
-                    if (options.printableOnly)
-                    {
-                        const flags: number = annotation.annotationFlags ?? 0;
-                        if ((flags & FLAG_PRINT) === 0)
-                        {
-                            source.annotationStorage.setValue(annotation.id, { noView: true });
-                            continue;
-                        }
-                        if ((flags & FLAG_NO_VIEW) !== 0 && (flags & FLAG_HIDDEN) === 0)
-                        {
-                            source.annotationStorage.setValue(annotation.id, { noView: false });
-                        }
-                    }
-                    if (
-                        annotation.subtype !== 'Widget'
-                        || (fieldType !== 'Tx' && fieldType !== 'Ch')
-                        || annotation.hasAppearance
-                    )
-                    {
-                        continue;
-                    }
-                    let value: unknown = annotation.fieldValue;
-                    if (fieldType === 'Ch')
-                    {
-                        // pdf.js derives a list's value from its selected-index
-                        // entry; when that disagrees with the stored value, the
-                        // PDF spec says the stored value wins.
-                        choiceValues ??= await readChoiceValues(source);
-                        value = choiceValues.get(annotation.fieldName) ?? value;
-                    }
-                    const filled = Array.isArray(value) ? value.length > 0 : typeof value === 'string' && value !== '';
-                    if (filled)
-                    {
-                        source.annotationStorage.setValue(annotation.id, { value });
+                        ctx.drawImage(overlay.source, overlay.x * scale, overlay.y * scale, overlay.width * scale, overlay.height * scale);
                     }
                 }
-
-                await page.render({
-                    canvas: null,
-                    canvasContext: ctx,
-                    viewport,
-                    annotationMode: pdfjs.AnnotationMode.ENABLE_STORAGE,
-                }).promise;
                 checkCancelled();
 
                 if (editPixels)
@@ -485,6 +558,6 @@ export async function flatten (
     }
     finally
     {
-        await task.destroy();
+        await close();
     }
 }

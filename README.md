@@ -20,6 +20,27 @@ never leave the device.
 Several files can be dropped at once; they are processed one after another and
 can be downloaded individually or together as a zip.
 
+## Adding signatures and stamps
+
+Every file in the list has an **Add images** button. It opens an editor that
+shows the pages and lets you place images on them before the document is
+flattened:
+
+- add images with the button, by dropping them, or by pasting;
+- drag to move, pull a corner to resize (the proportions are kept), use the
+  arrow keys for fine moves and Delete to remove;
+- an image you added stays in the editor's tray for the other pages and files,
+  and **Copy to all pages** repeats a placement through the document.
+
+The editor works at print scale: one image pixel is 1/300 inch, so a 600 px
+wide signature is 50.8 mm wide on paper. When a PNG or JPEG file declares a
+different resolution (72 or 96 dpi are common), the editor offers both sizes:
+pixel for pixel at 300 dpi, or the physical size the file asks for.
+
+Placed images are drawn into the page before it is flattened, so they come out
+at the chosen output resolution and cannot be lifted out of the PDF as separate
+images.
+
 ## Settings
 
 - **Resolution**: Screen 72 dpi (default), Small 96 dpi, Balanced 150 dpi, Sharp 200 dpi,

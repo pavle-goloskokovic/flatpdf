@@ -78,6 +78,40 @@
     </section>
 </main>
 
+<dialog id="editor" class="editor" aria-labelledby="editor-title">
+    <header class="editor-bar">
+        <strong id="editor-title" class="editor-title"></strong>
+        <div class="editor-nav">
+            <button id="editor-prev" type="button" class="ghost" aria-label="Previous page">‹</button>
+            <span id="editor-page" aria-live="polite"></span>
+            <button id="editor-next" type="button" class="ghost" aria-label="Next page">›</button>
+        </div>
+        <div class="editor-bar-actions">
+            <button id="editor-cancel" type="button" class="ghost">Cancel</button>
+            <button id="editor-done" type="button">Done</button>
+        </div>
+    </header>
+    <div class="editor-body">
+        <div id="editor-stage" class="editor-stage">
+            <div id="editor-sheet" class="editor-sheet"></div>
+        </div>
+        <aside class="editor-side">
+            <label class="button editor-add" for="editor-file">
+                Add image
+                <input id="editor-file" type="file" accept="image/*" multiple>
+            </label>
+            <p class="hint">
+                Add a signature or stamp, then drag it into place and pull a corner to resize.
+                Images go on at print scale: one image pixel is 1/300 inch. You can also drop
+                or paste an image. A PNG with a transparent background works best.
+            </p>
+            <p id="editor-message" class="editor-message" role="alert" hidden></p>
+            <div id="editor-library" class="editor-library" hidden></div>
+            <div id="editor-selected" class="editor-selected" hidden></div>
+        </aside>
+    </div>
+</dialog>
+
 <footer>
     <a href="https://github.com/pavle-goloskokovic/flatpdf">Source on GitHub</a>
 </footer>

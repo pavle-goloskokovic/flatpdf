@@ -346,3 +346,244 @@ footer a { color: var(--muted); }
         margin-top: 6px;
     }
 }
+
+/* Image editor */
+
+.item-actions .ghost { padding: 8px 10px; }
+
+dialog.editor {
+    width: 100vw;
+    max-width: none;
+    height: 100vh;
+    height: 100dvh;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    color: var(--text);
+    background: var(--bg);
+    border: 0;
+}
+
+dialog.editor[open] {
+    display: flex;
+    flex-direction: column;
+}
+
+.editor-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    padding: 10px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+}
+
+.editor-title {
+    flex: 1 1 120px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.editor-nav,
+.editor-bar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.editor-nav span {
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.editor-nav button { padding: 4px 12px; }
+
+button:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.editor-body {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+}
+
+.editor-stage {
+    min-width: 0;
+    overflow: auto;
+    padding: 16px;
+    background: var(--line);
+}
+
+.editor-sheet {
+    position: relative;
+    width: min(100%, 900px);
+    margin: 0 auto;
+    background: #fff;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.25);
+    overflow: hidden;
+    user-select: none;
+}
+
+.editor-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.stamp {
+    position: absolute;
+    cursor: move;
+    touch-action: none;
+    outline: 1px dashed rgba(194, 65, 12, 0.55);
+}
+
+.stamp img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.stamp.selected { outline: 2px solid #c2410c; }
+.stamp:focus-visible { outline: 3px solid #c2410c; }
+
+.stamp-handle {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    background: #fff;
+    border: 2px solid #c2410c;
+    border-radius: 50%;
+    touch-action: none;
+}
+
+.stamp-handle.nw { left: -7px; top: -7px; cursor: nwse-resize; }
+.stamp-handle.ne { right: -7px; top: -7px; cursor: nesw-resize; }
+.stamp-handle.sw { left: -7px; bottom: -7px; cursor: nesw-resize; }
+.stamp-handle.se { right: -7px; bottom: -7px; cursor: nwse-resize; }
+
+.editor-side {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    overflow: auto;
+    background: var(--surface);
+    border-left: 1px solid var(--line);
+}
+
+.editor-add {
+    text-align: center;
+    cursor: pointer;
+}
+
+.editor-add input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+}
+
+.editor-add:focus-within {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.hint {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--muted);
+}
+
+.editor-message {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--error);
+}
+
+.editor-library {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.library-item {
+    width: 64px;
+    height: 64px;
+    padding: 4px;
+    background: #fff;
+    border-color: var(--line);
+}
+
+.library-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.editor-selected {
+    display: grid;
+    gap: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+}
+
+.selected-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.selected-size {
+    margin: 0;
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.size-choices {
+    display: grid;
+    gap: 6px;
+}
+
+.size-choice {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+    white-space: normal;
+    line-height: 1.3;
+}
+
+.size-choice small {
+    font-weight: 400;
+    color: var(--muted);
+}
+
+.size-choice[aria-pressed="true"] {
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.selected-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+@media (max-width: 720px) {
+    .editor-body {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr) auto;
+    }
+    .editor-side {
+        max-height: 42vh;
+        border-left: 0;
+        border-top: 1px solid var(--line);
+    }
+}
