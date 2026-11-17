@@ -237,6 +237,26 @@ async function readChoiceValues (source: pdfjs.PDFDocumentProxy): Promise<Map<st
     return values;
 }
 
+/** PDF annotation flag: the annotation is meant to appear on paper. */
+const FLAG_PRINT = 4;
+
+/**
+ * True for push buttons that are controls of the interactive form (Reset,
+ * Submit, Print...) rather than content. A push button carries no value, so it
+ * is dropped when the author marked it screen-only or when it resets the form
+ * or opens a link. Printable buttons with other actions are kept, because
+ * "image fields" that hold a picture are built that way.
+ */
+function isCommandButton (annotation: Record<string, any>): boolean
+{
+    if (annotation.subtype !== 'Widget' || !annotation.pushButton)
+    {
+        return false;
+    }
+    const printable = ((annotation.annotationFlags ?? 0) & FLAG_PRINT) !== 0;
+    return !printable || Boolean(annotation.resetForm) || Boolean(annotation.url);
+}
+
 function encodeJpeg (canvas: HTMLCanvasElement, quality: number): Promise<ArrayBuffer>
 {
     return new Promise((resolve, reject) =>
@@ -360,6 +380,11 @@ export async function flatten (
                 for (const annotation of await page.getAnnotations())
                 {
                     const { fieldType } = annotation;
+                    if (isCommandButton(annotation))
+                    {
+                        source.annotationStorage.setValue(annotation.id, { noView: true });
+                        continue;
+                    }
                     if (
                         annotation.subtype !== 'Widget'
                         || (fieldType !== 'Tx' && fieldType !== 'Ch')
