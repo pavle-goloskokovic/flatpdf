@@ -3,6 +3,7 @@ import { CancelledError, flatten, PasswordError, type FlattenOptions } from './f
 
 /** Resolution presets, in dots per inch. */
 const PRESETS: Record<string, number> = {
+    screen: 72,
     small: 100,
     balanced: 150,
     sharp: 220,
@@ -57,7 +58,7 @@ function currentOptions (): FlattenOptions
     const checked = document.querySelector<HTMLInputElement>('input[name="preset"]:checked');
     const ocr = document.querySelector<HTMLInputElement>('input[name="ocr"]:checked')?.value;
     return {
-        dpi: PRESETS[checked?.value ?? 'small'] ?? PRESETS.small,
+        dpi: PRESETS[checked?.value ?? 'screen'] ?? PRESETS.screen,
         quality: Number(qualityInput.value) / 100,
         grayscale: grayInput.checked,
         printableOnly: printableInput.checked,
