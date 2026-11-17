@@ -25,6 +25,11 @@ export interface FlattenOptions
      * read it. Stronger settings are harder on both.
      */
     ocrProtection: 'off' | 'light' | 'strong';
+    /**
+     * Treat the output as the printed version: leave out every annotation the
+     * PDF does not mark as printable, and include print-only ones.
+     */
+    printableOnly: boolean;
 }
 
 export interface FlattenCallbacks
@@ -239,6 +244,9 @@ async function readChoiceValues (source: pdfjs.PDFDocumentProxy): Promise<Map<st
 
 /** PDF annotation flag: the annotation is meant to appear on paper. */
 const FLAG_PRINT = 4;
+/** PDF annotation flags: never shown / shown on paper but not on screen. */
+const FLAG_HIDDEN = 2;
+const FLAG_NO_VIEW = 32;
 
 /**
  * True for push buttons that are controls of the interactive form (Reset,
@@ -377,13 +385,26 @@ export async function flatten (
                 // A form field normally carries a ready-made drawing of its value.
                 // Some tools store only the value; pdf.js then draws nothing, so
                 // hand those values back to it and let it draw them itself.
-                for (const annotation of await page.getAnnotations())
+                for (const annotation of await page.getAnnotations({ intent: 'any' }))
                 {
                     const { fieldType } = annotation;
                     if (isCommandButton(annotation))
                     {
                         source.annotationStorage.setValue(annotation.id, { noView: true });
                         continue;
+                    }
+                    if (options.printableOnly)
+                    {
+                        const flags: number = annotation.annotationFlags ?? 0;
+                        if ((flags & FLAG_PRINT) === 0)
+                        {
+                            source.annotationStorage.setValue(annotation.id, { noView: true });
+                            continue;
+                        }
+                        if ((flags & FLAG_NO_VIEW) !== 0 && (flags & FLAG_HIDDEN) === 0)
+                        {
+                            source.annotationStorage.setValue(annotation.id, { noView: false });
+                        }
                     }
                     if (
                         annotation.subtype !== 'Widget'

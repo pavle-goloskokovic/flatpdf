@@ -44,6 +44,13 @@
         </label>
         <label class="check"><input id="gray" type="checkbox"> Grayscale</label>
         <div class="group">
+            <label class="check"><input id="printable" type="checkbox"> Printable content only</label>
+            <small>
+                Leaves out everything the PDF marks as screen-only, the way a printer would. Comments,
+                highlights or filled fields that were not marked for printing will be missing.
+            </small>
+        </div>
+        <div class="group">
             <span id="ocr-label">OCR protection</span>
             <div class="presets" role="radiogroup" aria-labelledby="ocr-label">
                 <label><input type="radio" name="ocr" value="off" checked><span><b>Off</b><small>clean pages</small></span></label>

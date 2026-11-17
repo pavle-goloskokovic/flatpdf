@@ -27,6 +27,9 @@ can be downloaded individually or together as a zip.
 - **Image quality**: JPEG quality from 10 to 100, default 60. JPEG is used
   because it is the compact image format PDF supports natively.
 - **Grayscale**: drops colour.
+- **Printable content only**: off by default. Leaves out every annotation the
+  PDF does not mark as printable and includes print-only ones, like a printer
+  would. Form command buttons (reset, links, screen-only) are always left out.
 - **OCR protection**: Off (default), Light or Strong. The page is bent
   slightly and short strokes in the text colour are scattered over text areas,
   so characters touch and OCR cannot separate them cleanly.

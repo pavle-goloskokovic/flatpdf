@@ -41,6 +41,7 @@ const $ = <T extends HTMLElement>(selector: string): T =>
 const drop = $<HTMLLabelElement>('#drop');
 const fileInput = $<HTMLInputElement>('#file');
 const grayInput = $<HTMLInputElement>('#gray');
+const printableInput = $<HTMLInputElement>('#printable');
 const qualityInput = $<HTMLInputElement>('#quality');
 const qualityValue = $<HTMLOutputElement>('#quality-value');
 const results = $<HTMLElement>('#results');
@@ -59,6 +60,7 @@ function currentOptions (): FlattenOptions
         dpi: PRESETS[checked?.value ?? 'small'] ?? PRESETS.small,
         quality: Number(qualityInput.value) / 100,
         grayscale: grayInput.checked,
+        printableOnly: printableInput.checked,
         ocrProtection: ocr === 'light' || ocr === 'strong' ? ocr : 'off',
     };
 }
@@ -469,6 +471,7 @@ for (const input of document.querySelectorAll<HTMLInputElement>('input[name="pre
     input.addEventListener('change', requeueAll);
 }
 grayInput.addEventListener('change', requeueAll);
+printableInput.addEventListener('change', requeueAll);
 qualityInput.addEventListener('input', () =>
 {
     qualityValue.value = qualityInput.value;
