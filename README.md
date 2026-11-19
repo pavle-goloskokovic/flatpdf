@@ -52,10 +52,15 @@ tool and its libraries are downloaded the first time the button is pressed.
   picture or a PDF bill (a PDF is searched page by page at 300 dpi);
 - edit payer, purpose, payee, payment code, amount, account, model and
   reference; any other fields the code has are listed under the slip;
+- the amount is checked as you type and, once you leave the field, written
+  out in full the way it goes on a paper slip (1250 becomes 1.250,00);
 - the new code is drawn as you type, with the **same QR version, error
   correction level and pixels per module** as the original, so it is the same
   size and density. If the new data no longer fits that version, the smallest
   version that holds it is used and the slip says so;
+- **Fill in a blank slip** in the same popup opens an empty slip instead: fill it in and the
+  code is made from scratch, in the smallest version that holds the data, at
+  error correction level M, 6 pixels per module (adjustable);
 - **Download PNG**, **Copy image**, or **Add to image tray** to place the new
   code on a PDF with the image editor above. A code read from a PDF comes out
   at the same physical size when placed at 300 dpi.

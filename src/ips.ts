@@ -148,6 +148,50 @@ export function readAmount (input: string): string | null
     return `${whole.replace(/^0+(?=\d)/, '')},${cents.padEnd(2, '0')}`;
 }
 
+/** Whole digits an amount may have: the code allows up to RSD99999999999999,99. */
+const MAX_AMOUNT_DIGITS = 14;
+
+export interface CheckedAmount
+{
+    /** The amount written out in full, as on a paper slip: 1.250,00. The input itself when it is wrong. */
+    shown: string;
+    /** What is wrong with it, or an empty string. An empty amount is not an error here. */
+    error: string;
+}
+
+/** Checks an amount as it is typed into the slip. */
+export function checkAmount (input: string): CheckedAmount
+{
+    const text = input.trim();
+    if (text === '')
+    {
+        return { shown: '', error: '' };
+    }
+    const fail = (error: string): CheckedAmount => ({ shown: input, error });
+    if (/[^\d.,\s]/.test(text))
+    {
+        return fail('Use digits only, with a comma before the paras: 1.250,00');
+    }
+    if (/,\d{3,}$/.test(text.replace(/\s/g, '')))
+    {
+        return fail('An amount has two decimals at most: 1.250,00');
+    }
+    const amount = readAmount(text);
+    if (amount === null)
+    {
+        return fail('This is not an amount. Write it like 1.250,00');
+    }
+    if (!/[1-9]/.test(amount))
+    {
+        return fail('The amount must be more than zero.');
+    }
+    if (amount.indexOf(',') > MAX_AMOUNT_DIGITS)
+    {
+        return fail('The amount is too large for the code.');
+    }
+    return { shown: showAmount(amount), error: '' };
+}
+
 function showAccount (raw: string): string
 {
     return /^\d{18}$/.test(raw) ? `${raw.slice(0, 3)}-${raw.slice(3, 16)}-${raw.slice(16)}` : raw;

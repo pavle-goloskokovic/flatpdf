@@ -1,12 +1,16 @@
 import { addToLibrary } from './editor';
 import { PasswordError } from './flatten';
-import { buildIps, EXTRA_LABELS, KINDS, parseIps, toValues, type IpsCode, type SlipValues } from './ips';
-import { drawQr, makeQr, modulesOf } from './qr-make';
+import { buildIps, checkAmount, EXTRA_LABELS, KINDS, parseIps, toValues, type IpsCode, type SlipValues } from './ips';
+import { drawQr, makeQr, modulesOf, type EcLevel } from './qr-make';
 import { scanImage, scanPdf, type ScannedQr } from './qr-read';
 
 /** The largest version the National Bank of Serbia allows for an IPS code. */
 const MAX_IPS_VERSION = 13;
 const MAX_CELL = 40;
+/** A slip filled in from scratch: the level NBS asks for on printed bills, and a size that prints well. */
+const BLANK_EC_LEVEL: EcLevel = 'M';
+const BLANK_CELL = 6;
+const BLANK_TEXT = 'K:PR|V:01|C:1';
 
 const $ = <T extends HTMLElement>(id: string): T =>
 {
@@ -28,6 +32,7 @@ const message = $('slip-message');
 const closeButton = $<HTMLButtonElement>('slip-close');
 const extraBox = $('slip-extra');
 const kindSelect = $<HTMLSelectElement>('slip-kind');
+const originalPanel = $('slip-original-panel');
 const originalBox = $('slip-original');
 const originalInfo = $('slip-original-info');
 const newBox = $('slip-new');
@@ -39,6 +44,8 @@ const copyButton = $<HTMLButtonElement>('slip-copy');
 const trayButton = $<HTMLButtonElement>('slip-tray');
 const resetButton = $<HTMLButtonElement>('slip-reset');
 const textBox = $('slip-text');
+const amountError = $('slip-amount-error');
+const amountInput = $<HTMLInputElement>('slip-amount');
 
 type TextKey = 'payer' | 'purpose' | 'payee' | 'code' | 'currency' | 'amount' | 'account' | 'model' | 'reference';
 
@@ -56,7 +63,13 @@ const inputs: Record<TextKey, HTMLInputElement | HTMLTextAreaElement> = {
 
 interface Session
 {
-    source: ScannedQr;
+    /** The code that was read, or null for a slip filled in from scratch. */
+    source: ScannedQr | null;
+    /** What the code says before any edit. */
+    baseText: string;
+    /** The new code is at least this version, at this error correction level. */
+    version: number;
+    ecLevel: EcLevel;
     code: IpsCode;
     initial: SlipValues;
     extraInputs: Map<string, HTMLInputElement | HTMLTextAreaElement>;
@@ -151,14 +164,31 @@ function fillForm (s: Session): void
     }
 }
 
+/**
+ * Marks the amount when it is not one. With `complete`, a good amount is also
+ * written out in full the way it goes on a paper slip: 1250 becomes 1.250,00.
+ */
+function checkAmountField (complete: boolean): void
+{
+    const input = inputs.amount;
+    const { shown, error } = checkAmount(input.value);
+    if (complete && !error && shown !== input.value)
+    {
+        input.value = shown;
+    }
+    input.setAttribute('aria-invalid', String(error !== ''));
+    amountError.textContent = error;
+    amountError.hidden = error === '';
+}
+
 function render (s: Session): void
 {
     const { source } = s;
     const { text, warnings } = buildIps(s.code, s.initial, readForm(s));
-    const changed = text !== source.text;
+    const changed = text !== s.baseText;
     const bytes = new TextEncoder().encode(text);
     const cell = Math.min(MAX_CELL, Math.max(1, Math.round(Number(cellInput.value)) || 1));
-    const qr = makeQr(bytes, source.version, source.ecLevel);
+    const qr = makeQr(bytes, s.version, s.ecLevel);
     const notes = [...warnings];
 
     newBox.replaceChildren();
@@ -171,9 +201,9 @@ function render (s: Session): void
         s.canvas.setAttribute('aria-label', 'New QR code');
         newBox.append(s.canvas);
         const side = s.canvas.width;
-        newInfo.textContent = `${describe(qr.version, source.ecLevel, String(cell), bytes.length)}`
+        newInfo.textContent = `${describe(qr.version, s.ecLevel, String(cell), bytes.length)}`
             + ` · ${side} × ${side} px with the white border`;
-        if (qr.version > source.version)
+        if (source && qr.version > source.version)
         {
             notes.unshift(
                 `The new data does not fit version ${source.version} at error correction ${source.ecLevel}, `
@@ -195,7 +225,8 @@ function render (s: Session): void
     warningList.replaceChildren(...notes.map((note) => el('li', '', note)));
     warningList.hidden = notes.length === 0;
     textBox.textContent = text;
-    $('slip-new-title').textContent = changed ? 'New code' : 'New code (nothing changed yet)';
+    $('slip-new-title').textContent = !source ? 'QR code' : changed ? 'New code' : 'New code (nothing changed yet)';
+    resetButton.textContent = source ? 'Undo changes' : 'Clear';
     resetButton.disabled = !changed;
     for (const button of [downloadButton, copyButton, trayButton])
     {
@@ -203,11 +234,52 @@ function render (s: Session): void
     }
 }
 
+function show (s: Session, cell: number, focus: HTMLInputElement | HTMLTextAreaElement): void
+{
+    session = s;
+    originalPanel.hidden = !s.source;
+    // Whole pixels keep the modules sharp.
+    cellInput.value = String(Math.min(MAX_CELL, Math.max(1, Math.round(cell))));
+    fillForm(s);
+    checkAmountField(false);
+    render(s);
+    if (popup.open)
+    {
+        popup.close();
+    }
+    if (!dialog.open)
+    {
+        dialog.showModal();
+    }
+    focus.focus();
+    focus.select();
+}
+
+/** Opens an empty payment slip to fill in; its QR code is drawn as the fields are typed. */
+export function openBlankSlip (): void
+{
+    const code = parseIps(`${BLANK_TEXT}|R:`);
+    if (!code)
+    {
+        return;
+    }
+    // The empty account only made the text pass as an IPS code.
+    code.fields.pop();
+    showStatus('');
+    show({
+        source: null,
+        baseText: BLANK_TEXT,
+        version: 1,
+        ecLevel: BLANK_EC_LEVEL,
+        code,
+        initial: toValues(code),
+        extraInputs: new Map(),
+        canvas: null,
+    }, BLANK_CELL, inputs.payer);
+}
+
 function open (source: ScannedQr, code: IpsCode): void
 {
-    const s: Session = { source, code, initial: toValues(code), extraInputs: new Map(), canvas: null };
-    session = s;
-
     source.crop.className = 'qr-image';
     source.crop.setAttribute('role', 'img');
     source.crop.setAttribute('aria-label', 'Original QR code');
@@ -219,20 +291,16 @@ function open (source: ScannedQr, code: IpsCode): void
         source.bytes.length,
     ) + (source.page ? ` · page ${source.page} at 300 dpi` : '');
 
-    // Whole pixels keep the modules sharp; a code smaller than that is not worth copying.
-    cellInput.value = String(Math.min(MAX_CELL, Math.max(1, Math.round(source.moduleSize))));
-    fillForm(s);
-    render(s);
-    if (popup.open)
-    {
-        popup.close();
-    }
-    if (!dialog.open)
-    {
-        dialog.showModal();
-    }
-    inputs.amount.focus();
-    inputs.amount.select();
+    show({
+        source,
+        baseText: source.text,
+        version: source.version,
+        ecLevel: source.ecLevel,
+        code,
+        initial: toValues(code),
+        extraInputs: new Map(),
+        canvas: null,
+    }, source.moduleSize, inputs.amount);
 }
 
 function close (): void
@@ -378,11 +446,39 @@ for (const node of [form, cellInput])
     node.addEventListener('input', () => session && render(session));
 }
 
+amountInput.addEventListener('beforeinput', (event) =>
+{
+    // Typing a letter into the amount does nothing; pasted text is checked afterwards.
+    if (event.data && /[^\d.,\s]/.test(event.data) && event.inputType === 'insertText')
+    {
+        event.preventDefault();
+    }
+});
+amountInput.addEventListener('input', () => checkAmountField(false));
+const completeAmount = (): void =>
+{
+    checkAmountField(true);
+    if (session)
+    {
+        render(session);
+    }
+};
+// 'change' fires when the field is left after an edit.
+amountInput.addEventListener('change', completeAmount);
+amountInput.addEventListener('keydown', (event) =>
+{
+    if (event.key === 'Enter')
+    {
+        completeAmount();
+    }
+});
+
 resetButton.addEventListener('click', () =>
 {
     if (session)
     {
         fillForm(session);
+        checkAmountField(false);
         render(session);
     }
 });

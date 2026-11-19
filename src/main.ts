@@ -2,8 +2,27 @@ import { zipSync } from 'fflate';
 import { offerImagesToEditor, openEditor, type Placement } from './editor';
 import { CancelledError, flatten, PasswordError, type FlattenOptions } from './flatten';
 
-/** The QR code tool and its libraries, loaded the first time its button is pressed. */
+/** The QR code tool and its libraries, loaded the first time one of its buttons is pressed. */
 let qrTool: typeof import('./slip') | null = null;
+let qrToolLoading: Promise<typeof import('./slip')> | null = null;
+
+function loadQrTool (): Promise<typeof import('./slip')>
+{
+    qrToolLoading ??= import('./slip').then(
+        (module) =>
+        {
+            qrTool = module;
+            return module;
+        },
+        (error: unknown) =>
+        {
+            // Let the next press try again.
+            qrToolLoading = null;
+            throw error;
+        },
+    );
+    return qrToolLoading;
+}
 
 /** Resolution presets, in dots per inch. */
 const PRESETS: Record<string, number> = {
@@ -585,18 +604,27 @@ $<HTMLButtonElement>('#qr-open').addEventListener('click', () =>
     qrStatus.textContent = 'Loading the QR reader…';
     qrStatus.hidden = false;
     qrStatus.classList.remove('error');
-    import('./slip').then(
-        (module) =>
-        {
-            qrTool = module;
-        },
-        (error: unknown) =>
+    loadQrTool().catch((error: unknown) =>
+    {
+        console.error(error);
+        qrStatus.textContent = 'Could not load the QR reader. Check the connection and try again.';
+        qrStatus.classList.add('error');
+    });
+});
+const blankButton = $<HTMLButtonElement>('#slip-blank');
+blankButton.addEventListener('click', () =>
+{
+    blankButton.setAttribute('aria-busy', 'true');
+    loadQrTool()
+        .then((module) => module.openBlankSlip())
+        .catch((error: unknown) =>
         {
             console.error(error);
-            qrStatus.textContent = 'Could not load the QR reader. Check the connection and try again.';
+            qrStatus.textContent = 'Could not load the payment slip. Check the connection and try again.';
+            qrStatus.hidden = false;
             qrStatus.classList.add('error');
-        },
-    );
+        })
+        .finally(() => blankButton.removeAttribute('aria-busy'));
 });
 $<HTMLButtonElement>('#qr-popup-close').addEventListener('click', () => qrPopup.close());
 // A press on the dimmed page around the popup closes it.

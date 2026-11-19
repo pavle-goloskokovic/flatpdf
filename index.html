@@ -96,6 +96,13 @@
         <span class="drop-title">Drop or paste a QR code</span>
         <span class="drop-sub">or click to choose a picture or a PDF bill</span>
     </label>
+    <button id="slip-blank" type="button" class="ghost qr-blank"
+            title="Fill in an empty payment slip and make its QR code">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="currentColor">
+            <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75zM20.7 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75z"/>
+        </svg>
+        Fill in a blank slip
+    </button>
     <p class="hint">
         The code opens as a payment slip you can edit. The new code keeps the version,
         error correction and size of the old one.
@@ -173,9 +180,11 @@
                                 <input id="slip-currency" readonly tabindex="-1">
                             </label>
                             <label>износ
-                                <input id="slip-amount" inputmode="decimal">
+                                <input id="slip-amount" inputmode="decimal" placeholder="0,00"
+                                       aria-describedby="slip-amount-error">
                             </label>
                         </div>
+                        <p id="slip-amount-error" class="slip-error" role="alert" hidden></p>
                         <label>рачун примаоца
                             <input id="slip-account" inputmode="numeric" spellcheck="false">
                         </label>
@@ -199,7 +208,7 @@
         </div>
         <aside class="editor-side">
             <p id="slip-message" class="qr-status" role="status" hidden></p>
-            <div class="qr-box">
+            <div id="slip-original-panel" class="qr-box">
                 <h3>Original code</h3>
                 <div id="slip-original"></div>
                 <p id="slip-original-info" class="hint"></p>
