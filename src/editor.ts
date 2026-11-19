@@ -639,6 +639,16 @@ export async function openEditor (request: EditorRequest): Promise<Placement[] |
     });
 }
 
+/** Puts an image in the tray, ready to be placed on a page the next time the editor is used. */
+export async function addToLibrary (file: File): Promise<void>
+{
+    library.push(await loadImage(file));
+    if (session)
+    {
+        renderLibrary(session);
+    }
+}
+
 /** Hands dropped or pasted files to the editor. Returns false when it is closed. */
 export function offerImagesToEditor (files: readonly File[]): boolean
 {

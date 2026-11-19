@@ -41,6 +41,32 @@ Placed images are drawn into the page before it is flattened, so they come out
 at the chosen output resolution and cannot be lifted out of the PDF as separate
 images.
 
+## Editing an NBS IPS QR code
+
+The round QR button in the bottom right corner opens a second tool. It reads
+the payment QR code Serbian bills carry (NBS IPS QR), shows what it says as a
+payment slip (налог за уплату) and makes a new code from the edited slip. The
+tool and its libraries are downloaded the first time the button is pressed.
+
+- drop or paste a picture of the code into the popup, or click it to choose a
+  picture or a PDF bill (a PDF is searched page by page at 300 dpi);
+- edit payer, purpose, payee, payment code, amount, account, model and
+  reference; any other fields the code has are listed under the slip;
+- the new code is drawn as you type, with the **same QR version, error
+  correction level and pixels per module** as the original, so it is the same
+  size and density. If the new data no longer fits that version, the smallest
+  version that holds it is used and the slip says so;
+- **Download PNG**, **Copy image**, or **Add to image tray** to place the new
+  code on a PDF with the image editor above. A code read from a PDF comes out
+  at the same physical size when placed at 300 dpi.
+
+Fields that were not edited are written back character for character. The
+slip warns about values the specification does not allow (lengths, an account
+or model 97 reference whose control digits do not match, a code above version
+13) but still makes the code. Reading uses
+[zxing-wasm](https://github.com/Sec-ant/zxing-wasm), served from this site,
+and writing uses [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator).
+
 ## Settings
 
 - **Resolution**: Screen 72 dpi, Small 96 dpi, Balanced 150 dpi (default), Sharp 200 dpi,

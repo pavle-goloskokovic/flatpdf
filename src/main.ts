@@ -2,6 +2,9 @@ import { zipSync } from 'fflate';
 import { offerImagesToEditor, openEditor, type Placement } from './editor';
 import { CancelledError, flatten, PasswordError, type FlattenOptions } from './flatten';
 
+/** The QR code tool and its libraries, loaded the first time its button is pressed. */
+let qrTool: typeof import('./slip') | null = null;
+
 /** Resolution presets, in dots per inch. */
 const PRESETS: Record<string, number> = {
     screen: 72,
@@ -539,10 +542,12 @@ window.addEventListener('drop', (event) =>
     drop.classList.remove('over');
     const files = Array.from(event.dataTransfer?.files ?? []);
     // While the image editor is open, a drop is an image for it, not a PDF.
-    if (!offerImagesToEditor(files))
+    // The payment slip likewise takes a drop as the next QR code to read.
+    if (offerImagesToEditor(files) || qrTool?.offerFilesToSlip(files))
     {
-        addFiles(files);
+        return;
     }
+    addFiles(files);
 });
 
 for (const input of document.querySelectorAll<HTMLInputElement>('input[name="preset"], input[name="ocr"]'))
@@ -567,3 +572,38 @@ clearButton.addEventListener('click', () =>
     }
 });
 downloadAllButton.addEventListener('click', () => void downloadAll());
+
+const qrPopup = $<HTMLDialogElement>('#qr-popup');
+const qrStatus = $<HTMLElement>('#qr-status');
+$<HTMLButtonElement>('#qr-open').addEventListener('click', () =>
+{
+    qrPopup.showModal();
+    if (qrTool)
+    {
+        return;
+    }
+    qrStatus.textContent = 'Loading the QR reader…';
+    qrStatus.hidden = false;
+    qrStatus.classList.remove('error');
+    import('./slip').then(
+        (module) =>
+        {
+            qrTool = module;
+        },
+        (error: unknown) =>
+        {
+            console.error(error);
+            qrStatus.textContent = 'Could not load the QR reader. Check the connection and try again.';
+            qrStatus.classList.add('error');
+        },
+    );
+});
+$<HTMLButtonElement>('#qr-popup-close').addEventListener('click', () => qrPopup.close());
+// A press on the dimmed page around the popup closes it.
+qrPopup.addEventListener('click', (event) =>
+{
+    if (event.target === qrPopup)
+    {
+        qrPopup.close();
+    }
+});

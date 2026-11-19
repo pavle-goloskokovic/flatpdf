@@ -78,6 +78,31 @@
     </section>
 </main>
 
+<button id="qr-open" type="button" class="qr-open" aria-haspopup="dialog"
+        aria-label="Edit an NBS IPS QR code" title="Edit an NBS IPS QR code">
+    <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" fill="currentColor">
+        <path fill-rule="evenodd" d="M3 3h8v8H3zm2 2v4h4V5zM13 3h8v8h-8zm2 2v4h4V5zM3 13h8v8H3zm2 2v4h4v-4z"/>
+        <path d="M6 6h2v2H6zM16 6h2v2h-2zM6 16h2v2H6zM13 13h2v2h-2zM17 13h4v2h-4zM15 15h2v2h-2zM13 17h2v4h-2zM17 17h2v2h-2zM19 19h2v2h-2zM16 19h2v2h-2z"/>
+    </svg>
+</button>
+
+<dialog id="qr-popup" class="qr-popup" aria-labelledby="qr-heading">
+    <div class="qr-popup-head">
+        <h2 id="qr-heading">NBS IPS QR code</h2>
+        <button id="qr-popup-close" type="button" class="icon" aria-label="Close">✕</button>
+    </div>
+    <label class="drop qr-drop" for="qr-file">
+        <input id="qr-file" type="file" accept="image/*,application/pdf,.pdf">
+        <span class="drop-title">Drop or paste a QR code</span>
+        <span class="drop-sub">or click to choose a picture or a PDF bill</span>
+    </label>
+    <p class="hint">
+        The code opens as a payment slip you can edit. The new code keeps the version,
+        error correction and size of the old one.
+    </p>
+    <p id="qr-status" class="qr-status" role="status" hidden></p>
+</dialog>
+
 <dialog id="editor" class="editor" aria-labelledby="editor-title">
     <header class="editor-bar">
         <strong id="editor-title" class="editor-title"></strong>
@@ -108,6 +133,98 @@
             <p id="editor-message" class="editor-message" role="alert" hidden></p>
             <div id="editor-library" class="editor-library" hidden></div>
             <div id="editor-selected" class="editor-selected" hidden></div>
+        </aside>
+    </div>
+</dialog>
+
+<dialog id="slip" class="editor" aria-labelledby="slip-title">
+    <header class="editor-bar">
+        <strong id="slip-title" class="editor-title">NBS IPS QR code</strong>
+        <div class="editor-bar-actions">
+            <label class="button ghost qr-pick" for="slip-file">
+                Read another
+                <input id="slip-file" type="file" accept="image/*,application/pdf,.pdf">
+            </label>
+            <button id="slip-close" type="button">Close</button>
+        </div>
+    </header>
+    <div class="editor-body">
+        <div class="editor-stage">
+            <form id="slip-form" class="slip-form" autocomplete="off">
+                <div class="slip" lang="sr">
+                    <div class="slip-title">НАЛОГ ЗА УПЛАТУ</div>
+                    <div class="slip-left">
+                        <label>уплатилац
+                            <textarea id="slip-payer" rows="3" spellcheck="false"></textarea>
+                        </label>
+                        <label>сврха уплате
+                            <textarea id="slip-purpose" rows="3" spellcheck="false"></textarea>
+                        </label>
+                        <label>прималац
+                            <textarea id="slip-payee" rows="3" spellcheck="false"></textarea>
+                        </label>
+                    </div>
+                    <div class="slip-right">
+                        <div class="slip-row">
+                            <label class="slip-narrow">шифра плаћања
+                                <input id="slip-code" inputmode="numeric" maxlength="3">
+                            </label>
+                            <label class="slip-narrow">валута
+                                <input id="slip-currency" readonly tabindex="-1">
+                            </label>
+                            <label>износ
+                                <input id="slip-amount" inputmode="decimal">
+                            </label>
+                        </div>
+                        <label>рачун примаоца
+                            <input id="slip-account" inputmode="numeric" spellcheck="false">
+                        </label>
+                        <div class="slip-row">
+                            <label class="slip-narrow">модел
+                                <input id="slip-model" inputmode="numeric" maxlength="2">
+                            </label>
+                            <label>позив на број (одобрење)
+                                <input id="slip-reference" spellcheck="false">
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="slip-extras">
+                    <label class="slip-extra-field">Code type (K)
+                        <select id="slip-kind"></select>
+                    </label>
+                    <div id="slip-extra" class="slip-extra"></div>
+                </div>
+            </form>
+        </div>
+        <aside class="editor-side">
+            <p id="slip-message" class="qr-status" role="status" hidden></p>
+            <div class="qr-box">
+                <h3>Original code</h3>
+                <div id="slip-original"></div>
+                <p id="slip-original-info" class="hint"></p>
+            </div>
+            <div class="qr-box">
+                <h3 id="slip-new-title">New code</h3>
+                <div id="slip-new"></div>
+                <p id="slip-new-info" class="hint"></p>
+                <label class="qr-cell">
+                    Pixels per module
+                    <input id="slip-cell" type="number" min="1" max="40" step="1">
+                </label>
+            </div>
+            <ul id="slip-warnings" class="slip-warnings" hidden></ul>
+            <div class="selected-actions">
+                <button id="slip-download" type="button">Download PNG</button>
+                <button id="slip-copy" type="button" class="ghost">Copy image</button>
+                <button id="slip-tray" type="button" class="ghost"
+                        title="Keeps the new code in the image editor, so Add images can place it on a PDF">Add to image tray</button>
+                <button id="slip-reset" type="button" class="ghost">Undo changes</button>
+            </div>
+            <details class="slip-content">
+                <summary>What the new code says</summary>
+                <pre id="slip-text"></pre>
+            </details>
         </aside>
     </div>
 </dialog>
