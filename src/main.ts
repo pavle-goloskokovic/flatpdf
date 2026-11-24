@@ -1,6 +1,7 @@
 import { zipSync } from 'fflate';
 import { offerImagesToEditor, openEditor, type Placement } from './editor';
 import { CancelledError, flatten, PasswordError, type FlattenOptions } from './flatten';
+import { fileKind, openSource, UnsupportedFileError, unsupportedReason } from './source';
 
 /** The QR code tool and its libraries, loaded the first time one of its buttons is pressed. */
 let qrTool: typeof import('./slip') | null = null;
@@ -88,7 +89,6 @@ function currentOptions (): FlattenOptions
         dpi: PRESETS[checked?.value ?? 'balanced'] ?? PRESETS.balanced,
         quality: Number(qualityInput.value) / 100,
         grayscale: grayInput.checked,
-        printableOnly: printableInput.checked,
         ocrProtection: ocr === 'light' || ocr === 'strong' ? ocr : 'off',
     };
 }
@@ -108,15 +108,10 @@ function formatSize (bytes: number): string
     return `${mb.toFixed(mb < 10 ? 2 : 1)} MB`;
 }
 
-function isPdf (file: File): boolean
-{
-    return file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
-}
-
-/** "report.pdf" -> "report-flat.pdf", made unique among the current items. */
+/** "report.pdf" or "report.docx" -> "report-flat.pdf", made unique among the current items. */
 function outputName (name: string): string
 {
-    const base = name.replace(/\.pdf$/i, '');
+    const base = name.replace(/\.(pdf|docx?)$/i, '');
     const taken = new Set(items.map((item) => item.outName));
     let candidate = `${base}-flat.pdf`;
     for (let i = 2; taken.has(candidate); i++)
@@ -273,6 +268,10 @@ function describeError (error: unknown): string
     {
         return 'Password protected. Add the file again to enter the password.';
     }
+    if (error instanceof UnsupportedFileError)
+    {
+        return error.message;
+    }
     if (error instanceof Error && error.name === 'InvalidPDFException')
     {
         return 'This file is not a valid PDF or is damaged.';
@@ -350,7 +349,6 @@ async function processItem (item: Item): Promise<void>
     {
         const options: FlattenOptions = {
             ...currentOptions(),
-            password: item.password,
             overlays: item.placements.map((p) => ({
                 page: p.page,
                 source: p.image.element,
@@ -360,7 +358,17 @@ async function processItem (item: Item): Promise<void>
                 height: p.height,
             })),
         };
-        const bytes = await flatten(await item.file.arrayBuffer(), options, {
+        const source = await openSource(item.file, {
+            password: item.password,
+            printableOnly: printableInput.checked,
+            askPassword: (retry) => askPassword(item, retry),
+        });
+        if (stale())
+        {
+            await source.close();
+            return;
+        }
+        const bytes = await flatten(source, options, {
             isCancelled: stale,
             onProgress: (done, total) =>
             {
@@ -379,7 +387,6 @@ async function processItem (item: Item): Promise<void>
                     renderItem(item);
                 }
             },
-            askPassword: (retry) => askPassword(item, retry),
         });
         if (stale())
         {
@@ -447,10 +454,11 @@ function addFiles (files: Iterable<File>): void
             error: '',
             el: el('li'),
         };
-        if (!isPdf(file))
+        const reason = unsupportedReason(fileKind(file));
+        if (reason)
         {
             item.status = 'error';
-            item.error = 'Not a PDF file.';
+            item.error = reason;
         }
         items.push(item);
         list.append(item.el);
@@ -465,7 +473,7 @@ function requeueAll (): void
 {
     for (const item of items)
     {
-        if (!isPdf(item.file))
+        if (unsupportedReason(fileKind(item.file)))
         {
             continue;
         }
@@ -517,7 +525,7 @@ fileInput.addEventListener('change', () =>
 });
 
 // Accept a drop anywhere on the page, not only on the drop zone, so a near
-// miss does not make the browser navigate away to the PDF.
+// miss does not make the browser navigate away to the file.
 let dragDepth = 0;
 const hasFiles = (event: DragEvent): boolean =>
     Array.from(event.dataTransfer?.types ?? []).includes('Files');
@@ -560,7 +568,7 @@ window.addEventListener('drop', (event) =>
     dragDepth = 0;
     drop.classList.remove('over');
     const files = Array.from(event.dataTransfer?.files ?? []);
-    // While the image editor is open, a drop is an image for it, not a PDF.
+    // While the image editor is open, a drop is an image for it, not a document.
     // The payment slip likewise takes a drop as the next QR code to read.
     if (offerImagesToEditor(files) || qrTool?.offerFilesToSlip(files))
     {

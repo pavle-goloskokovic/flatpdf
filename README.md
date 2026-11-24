@@ -1,8 +1,8 @@
 # FlatPDF
 
-Flatten PDFs in the browser: every page is rendered to an image and the images
-are packed into a new PDF with the same page sizes. Text, vectors, layers, form
-fields and annotations become pixels.
+Flatten PDFs and Word documents in the browser: every page is rendered to an
+image and the images are packed into a new PDF with the same page sizes. Text,
+vectors, layers, form fields and annotations become pixels.
 
 **https://pavle-goloskokovic.github.io/flatpdf/**
 
@@ -19,6 +19,30 @@ never leave the device.
 
 Several files can be dropped at once; they are processed one after another and
 can be downloaded individually or together as a zip.
+
+## Word documents
+
+A `.docx` file goes through the same steps, including the image editor, and
+comes out as a flattened PDF. Only step 1 differs:
+[docx-preview](https://github.com/VolodymyrBaydalka/docxjs) lays the document
+out as HTML in a hidden frame, and the browser paints each page of that into
+the canvas. The Word reader is downloaded the first time a Word file is added.
+
+This is the browser's layout of the document, not Word's, so it is close but
+not identical:
+
+- pages start where Word last started them, when the file records that (files
+  saved by Word do). A page that comes out up to a tenth too tall for its
+  paper is scaled down to fit, so the page count stays the same;
+- a file that does not record its pages (written by other software) is cut
+  into pages between lines of text, with the header and footer repeated;
+- fonts come from the device unless the document embeds them, so a font that
+  is missing is replaced and lines may break differently;
+- page numbers and other fields, text boxes, charts and SmartArt may be
+  missing or simplified. When the exact look matters, save the document as a
+  PDF in Word and flatten that.
+
+The old `.doc` format and password-protected documents are not supported.
 
 ## Adding signatures and stamps
 

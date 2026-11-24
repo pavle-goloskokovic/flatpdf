@@ -1,4 +1,4 @@
-import { openPdf, PageRenderer, type OpenedPdf } from './flatten';
+import { openSource, type SourceDocument } from './source';
 import { readImageDpi } from './image-dpi';
 
 /** The editor works at print scale: one image pixel is 1/300 inch. */
@@ -75,8 +75,7 @@ const library: StampImage[] = [];
 
 interface Session
 {
-    pdf: OpenedPdf;
-    renderer: PageRenderer;
+    doc: SourceDocument;
     placements: Placement[];
     page: number;
     pageWidth: number;
@@ -502,13 +501,13 @@ function renderSelected (s: Session): void
     }
 
     const actions = el('div', 'selected-actions');
-    if (s.pdf.doc.numPages > 1)
+    if (s.doc.numPages > 1)
     {
         const copy = el('button', 'ghost', 'Copy to all pages');
         copy.type = 'button';
         copy.addEventListener('click', () =>
         {
-            for (let page = 1; page <= s.pdf.doc.numPages; page++)
+            for (let page = 1; page <= s.doc.numPages; page++)
             {
                 const exists = s.placements.some((other) => other.page === page
                     && other.image === p.image
@@ -534,7 +533,7 @@ function renderSide (s: Session): void
 {
     renderLibrary(s);
     renderSelected(s);
-    const total = s.pdf.doc.numPages;
+    const total = s.doc.numPages;
     const here = s.placements.filter((p) => p.page === s.page).length;
     const all = s.placements.length;
     pageLabel.textContent = `Page ${s.page} of ${total}`
@@ -550,24 +549,23 @@ async function showPage (s: Session, number: number): Promise<void>
     s.selected = null;
     renderSide(s);
 
-    const page = await s.pdf.doc.getPage(number);
+    const page = await s.doc.getPage(number);
     if (session !== s || token !== s.renderToken)
     {
         return;
     }
-    const size = page.getViewport({ scale: 1 });
-    s.pageWidth = size.width;
-    s.pageHeight = size.height;
-    sheet.style.aspectRatio = `${size.width} / ${size.height}`;
+    s.pageWidth = page.width;
+    s.pageHeight = page.height;
+    sheet.style.aspectRatio = `${page.width} / ${page.height}`;
     renderStamps(s);
 
     // Sharp enough for the screen, without rendering a full 300 dpi bitmap.
     const shown = sheet.getBoundingClientRect().width || 800;
     const pixels = Math.min(2400, Math.max(600, shown * Math.min(2, window.devicePixelRatio || 1)));
-    const viewport = page.getViewport({ scale: pixels / size.width });
+    const scale = pixels / page.width;
     const canvas = el('canvas', 'editor-canvas');
-    canvas.width = Math.round(viewport.width);
-    canvas.height = Math.round(viewport.height);
+    canvas.width = Math.round(page.width * scale);
+    canvas.height = Math.round(page.height * scale);
     const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx)
     {
@@ -575,7 +573,7 @@ async function showPage (s: Session, number: number): Promise<void>
     }
     try
     {
-        await s.renderer.render(page, ctx, viewport);
+        await page.render(ctx, scale);
     }
     finally
     {
@@ -602,7 +600,7 @@ function close (result: Placement[] | null): void
     {
         dialog.close();
     }
-    void s.pdf.close();
+    void s.doc.close();
     s.finish(result);
 }
 
@@ -616,13 +614,17 @@ export async function openEditor (request: EditorRequest): Promise<Placement[] |
     {
         return null;
     }
-    const pdf = await openPdf(await request.file.arrayBuffer(), request.password, request.askPassword);
+    const doc = await openSource(request.file, request);
+    if (session)
+    {
+        void doc.close();
+        return null;
+    }
 
     return new Promise((resolve) =>
     {
         const s: Session = {
-            pdf,
-            renderer: new PageRenderer(pdf.doc, request.printableOnly),
+            doc,
             placements: request.placements.map((p) => ({ ...p })),
             page: 1,
             pageWidth: 1,

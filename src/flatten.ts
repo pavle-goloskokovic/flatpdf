@@ -1,6 +1,7 @@
 import { PDFDocument, PDFDropdown, PDFOptionList } from 'pdf-lib';
 import * as pdfjs from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import type { OpenOptions, SourceDocument } from './source';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -25,15 +26,8 @@ export interface FlattenOptions
      * read it. Stronger settings are harder on both.
      */
     ocrProtection: 'off' | 'light' | 'strong';
-    /**
-     * Treat the output as the printed version: leave out every annotation the
-     * PDF does not mark as printable, and include print-only ones.
-     */
-    printableOnly: boolean;
     /** Images to draw onto pages before they are flattened. */
     overlays?: readonly Overlay[];
-    /** Password to try first on an encrypted file. */
-    password?: string;
 }
 
 /** An image placed on a page. Position and size are in points from the page's top-left corner. */
@@ -55,8 +49,6 @@ export interface FlattenCallbacks
     onPreview?: (jpeg: Blob) => void;
     /** Return true to stop; `flatten` then throws `CancelledError`. */
     isCancelled?: () => boolean;
-    /** Called for encrypted files. Return null to give up. */
-    askPassword?: (retry: boolean) => string | null;
 }
 
 export class CancelledError extends Error
@@ -343,7 +335,9 @@ export async function openPdf (
 
 /**
  * Draws pages of one document the way the flattened output shows them: form
- * values are always drawn, form command buttons never are.
+ * values are always drawn, form command buttons never are. With
+ * `printableOnly` the output is the printed version: every annotation the PDF
+ * does not mark as printable is left out, and print-only ones are included.
  */
 export class PageRenderer
 {
@@ -422,6 +416,32 @@ export class PageRenderer
     }
 }
 
+/** Opens a PDF as a document whose pages `flatten` and the image editor can draw. */
+export async function openPdfSource (data: ArrayBuffer, options: OpenOptions): Promise<SourceDocument>
+{
+    const { doc, close } = await openPdf(data, options.password, options.askPassword);
+    const renderer = new PageRenderer(doc, options.printableOnly);
+    return {
+        numPages: doc.numPages,
+        async getPage (number)
+        {
+            const page = await doc.getPage(number);
+            // Size in points, with page rotation and UserUnit already applied.
+            const size = page.getViewport({ scale: 1 });
+            return {
+                width: size.width,
+                height: size.height,
+                render: (ctx, scale) => renderer.render(page, ctx, page.getViewport({ scale })),
+                cleanup: () =>
+                {
+                    page.cleanup();
+                },
+            };
+        },
+        close,
+    };
+}
+
 function encodeJpeg (canvas: HTMLCanvasElement, quality: number): Promise<ArrayBuffer>
 {
     return new Promise((resolve, reject) =>
@@ -441,17 +461,17 @@ function encodeJpeg (canvas: HTMLCanvasElement, quality: number): Promise<ArrayB
 }
 
 /**
- * Renders every page of `data` to a JPEG and returns a new PDF whose pages are
- * those images at the original page size. Text, vectors, layers, forms and
- * annotations all end up as pixels.
+ * Renders every page of `source` to a JPEG and returns a new PDF whose pages
+ * are those images at the original page size. Text, vectors, layers, forms and
+ * annotations all end up as pixels. Closes `source` when done.
  */
 export async function flatten (
-    data: ArrayBuffer,
+    source: SourceDocument,
     options: FlattenOptions,
     callbacks: FlattenCallbacks = {},
 ): Promise<Uint8Array>
 {
-    const { onProgress, onPreview, isCancelled, askPassword } = callbacks;
+    const { onProgress, onPreview, isCancelled } = callbacks;
     const checkCancelled = (): void =>
     {
         if (isCancelled?.())
@@ -459,9 +479,6 @@ export async function flatten (
             throw new CancelledError();
         }
     };
-
-    const { doc: source, close } = await openPdf(data, options.password, askPassword);
-    const renderer = new PageRenderer(source, options.printableOnly);
 
     try
     {
@@ -474,21 +491,18 @@ export async function flatten (
             checkCancelled();
 
             const page = await source.getPage(n);
-            // Size in points, with page rotation and UserUnit already applied.
-            const size = page.getViewport({ scale: 1 });
 
             let scale = options.dpi / 72;
             scale = Math.min(
                 scale,
-                MAX_SIDE / size.width,
-                MAX_SIDE / size.height,
-                Math.sqrt(MAX_PIXELS / (size.width * size.height)),
+                MAX_SIDE / page.width,
+                MAX_SIDE / page.height,
+                Math.sqrt(MAX_PIXELS / (page.width * page.height)),
             );
-            const viewport = page.getViewport({ scale });
 
             const canvas = document.createElement('canvas');
-            canvas.width = Math.max(1, Math.round(viewport.width));
-            canvas.height = Math.max(1, Math.round(viewport.height));
+            canvas.width = Math.max(1, Math.round(page.width * scale));
+            canvas.height = Math.max(1, Math.round(page.height * scale));
             const specks = SPECKS_PER_SQUARE_INCH[options.ocrProtection];
             const editPixels = options.grayscale || specks > 0;
             const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: editPixels });
@@ -499,7 +513,7 @@ export async function flatten (
 
             try
             {
-                await renderer.render(page, ctx, viewport);
+                await page.render(ctx, scale);
 
                 ctx.imageSmoothingQuality = 'high';
                 for (const overlay of options.overlays ?? [])
@@ -536,11 +550,11 @@ export async function flatten (
                     onPreview?.(new Blob([jpeg], { type: 'image/jpeg' }));
                 }
                 const image = await output.embedJpg(jpeg);
-                output.addPage([size.width, size.height]).drawImage(image, {
+                output.addPage([page.width, page.height]).drawImage(image, {
                     x: 0,
                     y: 0,
-                    width: size.width,
-                    height: size.height,
+                    width: page.width,
+                    height: page.height,
                 });
             }
             finally
@@ -558,6 +572,6 @@ export async function flatten (
     }
     finally
     {
-        await close();
+        await source.close();
     }
 }

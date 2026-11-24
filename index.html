@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light dark">
-    <meta name="description" content="Flatten PDFs in your browser: every page becomes a single image. Nothing is uploaded.">
+    <meta name="description" content="Flatten PDFs and Word documents in your browser: every page becomes a single image. Nothing is uploaded.">
     <title>FlatPDF: flatten PDFs in your browser</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='5' y='2' width='22' height='28' rx='3' fill='%23c2410c'/%3E%3Crect x='9' y='14' width='14' height='4' rx='1' fill='%23fff'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="/src/style.css">
@@ -14,14 +14,15 @@
     <header>
         <h1>FlatPDF</h1>
         <p class="lede">
-            Turn every page of a PDF into a single flat image. Text, layers, form fields and
-            annotations become pixels that can no longer be selected, edited or lifted out.
+            Turn every page of a PDF or Word document into a single flat image. Text, layers, form
+            fields and annotations become pixels that can no longer be selected, edited or lifted out.
         </p>
     </header>
 
     <label id="drop" class="drop" for="file">
-        <input id="file" type="file" accept="application/pdf,.pdf" multiple>
-        <span class="drop-title">Drop PDF files here</span>
+        <input id="file" type="file" multiple
+               accept="application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx">
+        <span class="drop-title">Drop PDF or Word files here</span>
         <span class="drop-sub">or click to choose. You can add several at once.</span>
     </label>
 
