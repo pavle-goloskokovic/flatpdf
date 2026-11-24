@@ -1,7 +1,7 @@
 import { zipSync } from 'fflate';
 import { offerImagesToEditor, openEditor, type Placement } from './editor';
 import { CancelledError, flatten, PasswordError, type FlattenOptions } from './flatten';
-import { fileKind, openSource, UnsupportedFileError, unsupportedReason } from './source';
+import { copyToMemory, fileKind, isUnreadableFile, openSource, UnsupportedFileError, unsupportedReason } from './source';
 
 /** The QR code tool and its libraries, loaded the first time one of its buttons is pressed. */
 let qrTool: typeof import('./slip') | null = null;
@@ -38,7 +38,10 @@ type Status = 'pending' | 'working' | 'done' | 'error';
 
 interface Item
 {
+    /** The file as it was added. Read only through `data`. */
     file: File;
+    /** The file's content, copied into memory so that the file on disk may change or go away. */
+    data: Promise<File>;
     outName: string;
     status: Status;
     /** Bumped whenever the item is re-queued or removed, to stop a running job. */
@@ -209,7 +212,8 @@ function renderItem (item: Item): void
             break;
     }
 
-    if (item.status !== 'error')
+    // After a failure too when images were placed, in case one of them caused it.
+    if (item.status !== 'error' || item.placements.length)
     {
         const count = item.placements.length;
         const edit = el('button', 'ghost', count ? `Images (${count})` : 'Add images');
@@ -262,25 +266,47 @@ function removeItem (item: Item): void
     renderSummary();
 }
 
-function describeError (error: unknown): string
+/** Says what went wrong and what to do about it. `doing` is what was being tried: "flatten" or "open". */
+function describeError (error: unknown, item: Item, doing = 'flatten'): string
 {
     if (error instanceof PasswordError)
     {
-        return 'Password protected. Add the file again to enter the password.';
+        return 'Password protected, and no password was entered. Add the file again to enter it.';
     }
     if (error instanceof UnsupportedFileError)
     {
         return error.message;
     }
-    if (error instanceof Error && error.name === 'InvalidPDFException')
+    if (isUnreadableFile(error))
     {
-        return 'This file is not a valid PDF or is damaged.';
+        return 'The file could not be read from disk. It may have been moved, renamed or deleted '
+            + 'while it was being added, or it is a folder. Add it again.';
     }
-    if (error instanceof Error && error.message)
+    const name = error instanceof Error ? error.name : '';
+    const text = error instanceof Error ? error.message : '';
+    if (name === 'InvalidPDFException')
     {
-        return `Could not flatten: ${error.message}`;
+        return 'This file is not a valid PDF or is damaged. Open it in a PDF viewer, '
+            + 'save or print it to a new PDF, and add that.';
     }
-    return 'Could not flatten this file.';
+    if (name === 'SecurityError' || /tainted/i.test(text))
+    {
+        return item.placements.length
+            ? 'The browser refused to save a page with one of the placed images on it. '
+                + 'Open Images, remove them and add them as PNG or JPEG files.'
+            : 'The browser refused to save a page of this document, '
+                + 'which it does when the page holds content it will not let be copied.';
+    }
+    if (error instanceof RangeError || /out of memory|allocation failed|could not (create a canvas|encode)/i.test(text))
+    {
+        return `Not enough memory to ${doing} this file. Choose a lower resolution, `
+            + 'remove other files from the list or close other tabs, then try again.';
+    }
+    if (text)
+    {
+        return `Could not ${doing} this file. The browser reported: ${text}`;
+    }
+    return `Could not ${doing} this file, and the browser gave no reason.`;
 }
 
 function askPassword (item: Item, retry: boolean): string | null
@@ -312,7 +338,7 @@ async function editImages (item: Item): Promise<void>
     try
     {
         placements = await openEditor({
-            file: item.file,
+            file: await item.data,
             password: item.password,
             printableOnly: printableInput.checked,
             placements: item.placements,
@@ -322,7 +348,7 @@ async function editImages (item: Item): Promise<void>
     catch (error)
     {
         console.error(error);
-        window.alert(describeError(error));
+        window.alert(`${item.file.name}\n\n${describeError(error, item, 'open')}`);
         return;
     }
     if (placements === null || !items.includes(item))
@@ -358,7 +384,7 @@ async function processItem (item: Item): Promise<void>
                 height: p.height,
             })),
         };
-        const source = await openSource(item.file, {
+        const source = await openSource(await item.data, {
             password: item.password,
             printableOnly: printableInput.checked,
             askPassword: (retry) => askPassword(item, retry),
@@ -404,7 +430,7 @@ async function processItem (item: Item): Promise<void>
         }
         console.error(error);
         item.status = 'error';
-        item.error = describeError(error);
+        item.error = describeError(error, item);
     }
     renderItem(item);
 }
@@ -440,8 +466,14 @@ function addFiles (files: Iterable<File>): void
 {
     for (const file of files)
     {
+        const reason = unsupportedReason(fileKind(file));
+        // Read now, while the file is where the user picked it.
+        const data = reason ? Promise.resolve(file) : copyToMemory(file);
+        // A failed read is reported when the item is flattened.
+        data.catch(() => undefined);
         const item: Item = {
             file,
+            data,
             outName: outputName(file.name),
             status: 'pending',
             run: 0,
@@ -454,7 +486,6 @@ function addFiles (files: Iterable<File>): void
             error: '',
             el: el('li'),
         };
-        const reason = unsupportedReason(fileKind(file));
         if (reason)
         {
             item.status = 'error';

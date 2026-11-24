@@ -1,4 +1,4 @@
-import { openSource, type SourceDocument } from './source';
+import { isUnreadableFile, openSource, type SourceDocument } from './source';
 import { readImageDpi } from './image-dpi';
 
 /** The editor works at print scale: one image pixel is 1/300 inch. */
@@ -14,6 +14,8 @@ const KEEP_ON_PAGE = 8;
 export interface StampImage
 {
     name: string;
+    /** Identifies the file's content, so the same image is kept once however often it is added. */
+    key: string;
     url: string;
     element: HTMLImageElement;
     /** Size in pixels. */
@@ -144,28 +146,132 @@ function showMessage (text: string): void
     message.hidden = text === '';
 }
 
-async function loadImage (file: File): Promise<StampImage>
+function contentKey (bytes: Uint8Array): string
 {
-    const dpi = readImageDpi(new Uint8Array(await file.arrayBuffer()));
-    const url = URL.createObjectURL(file);
+    // FNV-1a.
+    let hash = 0x811C9DC5;
+    for (let i = 0; i < bytes.length; i++)
+    {
+        hash = Math.imul(hash ^ bytes[i], 0x01000193);
+    }
+    return `${bytes.length}:${hash >>> 0}`;
+}
+
+/**
+ * True when a canvas that drew this image can no longer be read back, which
+ * would make every page carrying it fail to flatten.
+ */
+function taintsCanvas (image: HTMLImageElement): boolean
+{
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 1;
+    const ctx = canvas.getContext('2d');
+    if (!ctx)
+    {
+        return false;
+    }
+    try
+    {
+        ctx.drawImage(image, 0, 0, 1, 1);
+        ctx.getImageData(0, 0, 1, 1);
+        return false;
+    }
+    catch
+    {
+        return true;
+    }
+}
+
+function toDataUrl (blob: Blob): Promise<string>
+{
+    return new Promise((resolve, reject) =>
+    {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(reader.error ?? new Error('Could not read the file.'));
+        reader.readAsDataURL(blob);
+    });
+}
+
+async function decodeImage (url: string): Promise<HTMLImageElement | null>
+{
     const element = new Image();
     element.draggable = false;
     element.src = url;
     try
     {
         await element.decode();
+        return element;
     }
     catch
     {
+        return null;
+    }
+}
+
+/** The tray's image for this file: the one already there when the same file was added before. */
+async function loadImage (file: File): Promise<StampImage>
+{
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const key = contentKey(bytes);
+    const known = library.find((image) => image.key === key);
+    if (known)
+    {
+        return known;
+    }
+
+    // From the bytes in memory, not the file: the file on disk may change or go away.
+    const blob = new Blob([bytes], { type: file.type });
+    let url = URL.createObjectURL(blob);
+    let element = await decodeImage(url);
+    if (element && taintsCanvas(element))
+    {
+        // Chrome refuses to read back an SVG that holds HTML when it came from
+        // a blob: URL, but not when the same file came from a data: URL.
         URL.revokeObjectURL(url);
-        throw new Error(`"${file.name}" is not an image this browser can open.`);
+        url = await toDataUrl(blob);
+        element = await decodeImage(url);
+        if (element && taintsCanvas(element))
+        {
+            throw new Error(
+                `"${file.name}" cannot be used: this browser will not save a page with it on. `
+                + 'Convert it to PNG or JPEG and add that.',
+            );
+        }
+    }
+    if (!element)
+    {
+        URL.revokeObjectURL(url);
+        throw new Error(
+            file.type.startsWith('image/')
+                ? `"${file.name}" is damaged or in an image format this browser cannot open. `
+                    + 'Convert it to PNG or JPEG and add that.'
+                : `"${file.name}" is not an image. Add a PNG, JPEG or SVG file.`,
+        );
     }
     if (!element.naturalWidth || !element.naturalHeight)
     {
         URL.revokeObjectURL(url);
-        throw new Error(`"${file.name}" has no pixel size.`);
+        throw new Error(`"${file.name}" does not say how big it is. Convert it to PNG and add that.`);
     }
-    return { name: file.name, url, element, width: element.naturalWidth, height: element.naturalHeight, dpi };
+    const image: StampImage = {
+        name: file.name,
+        key,
+        url,
+        element,
+        width: element.naturalWidth,
+        height: element.naturalHeight,
+        dpi: readImageDpi(bytes),
+    };
+    // Another copy of the same file may have finished loading meanwhile.
+    const raced = library.find((other) => other.key === key);
+    if (raced)
+    {
+        URL.revokeObjectURL(url);
+        return raced;
+    }
+    library.push(image);
+    return image;
 }
 
 /** Puts an image on the current page at 300 dpi scale, in the middle of what is visible. */
@@ -215,7 +321,6 @@ async function addImages (files: Iterable<File>): Promise<void>
         try
         {
             const image = await loadImage(file);
-            library.push(image);
             if (session === s)
             {
                 place(s, image);
@@ -223,7 +328,12 @@ async function addImages (files: Iterable<File>): Promise<void>
         }
         catch (error)
         {
-            showMessage(error instanceof Error ? error.message : 'Could not add that image.');
+            console.error(error);
+            showMessage(isUnreadableFile(error)
+                ? `"${file.name}" could not be read from disk. It may have been moved, renamed or deleted. Add it again.`
+                : error instanceof Error && error.message
+                    ? error.message
+                    : `Could not add "${file.name}".`);
         }
     }
 }
@@ -542,11 +652,26 @@ function renderSide (s: Session): void
     nextButton.disabled = s.page >= total;
 }
 
+/** Shows a page, and says so in the editor when it cannot be drawn. */
+function goToPage (s: Session, number: number): void
+{
+    showPage(s, number).catch((error: unknown) =>
+    {
+        console.error(error);
+        if (session === s)
+        {
+            const reason = error instanceof Error && error.message ? ` The browser reported: ${error.message}` : '';
+            showMessage(`Page ${number} could not be shown.${reason}`);
+        }
+    });
+}
+
 async function showPage (s: Session, number: number): Promise<void>
 {
     const token = ++s.renderToken;
     s.page = number;
     s.selected = null;
+    showMessage('');
     renderSide(s);
 
     const page = await s.doc.getPage(number);
@@ -637,14 +762,14 @@ export async function openEditor (request: EditorRequest): Promise<Placement[] |
         title.textContent = request.file.name;
         title.title = request.file.name;
         dialog.showModal();
-        void showPage(s, 1);
+        goToPage(s, 1);
     });
 }
 
 /** Puts an image in the tray, ready to be placed on a page the next time the editor is used. */
 export async function addToLibrary (file: File): Promise<void>
 {
-    library.push(await loadImage(file));
+    await loadImage(file);
     if (session)
     {
         renderLibrary(session);
@@ -667,8 +792,8 @@ imageInput.addEventListener('change', () =>
     void addImages(Array.from(imageInput.files ?? []));
     imageInput.value = '';
 });
-prevButton.addEventListener('click', () => session && void showPage(session, session.page - 1));
-nextButton.addEventListener('click', () => session && void showPage(session, session.page + 1));
+prevButton.addEventListener('click', () => session && goToPage(session, session.page - 1));
+nextButton.addEventListener('click', () => session && goToPage(session, session.page + 1));
 doneButton.addEventListener('click', () => close(session ? session.placements : null));
 cancelButton.addEventListener('click', () => close(null));
 // Escape closes a modal dialog on its own; treat it as Cancel.

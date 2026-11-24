@@ -39,6 +39,22 @@ export class UnsupportedFileError extends Error
     }
 }
 
+/**
+ * A copy of the file held in memory. A `File` from a file picker or a drop only
+ * points at the file on disk, and stops being readable once that file is
+ * renamed, moved, changed or deleted.
+ */
+export async function copyToMemory (file: File): Promise<File>
+{
+    return new File([await file.arrayBuffer()], file.name, { type: file.type, lastModified: file.lastModified });
+}
+
+/** True for the error a browser raises when a file on disk can no longer be read. */
+export function isUnreadableFile (error: unknown): boolean
+{
+    return error instanceof DOMException && (error.name === 'NotFoundError' || error.name === 'NotReadableError');
+}
+
 export type FileKind = 'pdf' | 'word' | 'old-word' | 'other';
 
 const DOCX_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -68,7 +84,7 @@ export function unsupportedReason (kind: FileKind): string
         case 'old-word':
             return 'Old .doc files are not supported. Save it as .docx in Word and add it again.';
         case 'other':
-            return 'Not a PDF or Word file.';
+            return 'Not a PDF or Word file. Only .pdf and .docx files can be flattened.';
         default:
             return '';
     }

@@ -599,7 +599,7 @@ export async function openDocx (data: ArrayBuffer): Promise<SourceDocument>
         catch (error)
         {
             console.error(error);
-            throw new UnsupportedFileError('This file is not a valid Word document or is damaged.');
+            throw new UnsupportedFileError('This file is not a valid Word document or is damaged. Open it in Word, save it as a new .docx and add that.');
         }
         const style = doc.createElement('style');
         style.textContent = PAGE_CSS;
